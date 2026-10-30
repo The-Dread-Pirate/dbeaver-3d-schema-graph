@@ -1,0 +1,19 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: DBeaver 3D Schema Graph
+Bundle-SymbolicName: org.jkiss.dbeaver.ext.graph3d.ui;singleton:=true
+Bundle-Version: 0.1.4.qualifier
+Bundle-Vendor: DBeaver 3D Schema Graph contributors
+Bundle-RequiredExecutionEnvironment: JavaSE-21
+Bundle-ActivationPolicy: lazy
+Automatic-Module-Name: org.jkiss.dbeaver.ext.graph3d.ui
+Require-Bundle: org.eclipse.core.runtime,
+ org.eclipse.core.commands,
+ org.eclipse.ui,
+ org.eclipse.jface,
+ org.eclipse.swt,
+ org.jkiss.dbeaver.model,
+ org.jkiss.dbeaver.model.sql,
+ org.jkiss.dbeaver.ui,
+ org.jkiss.dbeaver.ui.navigator
+Export-Package: org.jkiss.dbeaver.ext.graph3d.ui

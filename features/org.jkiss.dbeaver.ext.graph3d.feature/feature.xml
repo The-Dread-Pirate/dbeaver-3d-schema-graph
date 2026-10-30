@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feature
+      id="org.jkiss.dbeaver.ext.graph3d.feature"
+      label="DBeaver 3D Schema Graph"
+      version="0.1.4.qualifier"
+      provider-name="DBeaver 3D Schema Graph contributors"
+      license-feature-version="0.0.0">
+
+   <description url="https://github.com/n23eos/advanced_graph_view">
+      Visualizes a database schema as an interactive 3D graph inside DBeaver:
+      tables as nodes, foreign keys as edges, with zoom/rotate/drag/select,
+      object details, and navigate-to-object. Reuses the MIT-licensed
+      "Advanced Graph View" Pixi.js renderer inside an SWT Browser.
+   </description>
+
+   <copyright>
+      EPL-2.0. Bundles MIT/ISC/BSD third-party code — see THIRD-PARTY.md.
+   </copyright>
+
+   <license url="https://www.eclipse.org/legal/epl-2.0/">
+      This plugin is licensed under the Eclipse Public License 2.0.
+      The bundled JavaScript renderer and its dependencies are MIT/ISC/BSD;
+      their notices are retained in the bundle (THIRD-PARTY.md).
+   </license>
+
+   <plugin
+         id="org.jkiss.dbeaver.ext.graph3d.ui"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+</feature>

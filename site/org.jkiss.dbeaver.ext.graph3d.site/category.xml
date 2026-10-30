@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<site>
+   <feature
+         id="org.jkiss.dbeaver.ext.graph3d.feature"
+         version="0.1.4.qualifier">
+      <category name="org.jkiss.dbeaver.ext.graph3d"/>
+   </feature>
+   <category-def
+         name="org.jkiss.dbeaver.ext.graph3d"
+         label="DBeaver 3D Schema Graph">
+      <description>
+         Interactive 3D database schema graph for DBeaver CE.
+      </description>
+   </category-def>
+</site>

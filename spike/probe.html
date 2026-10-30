@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DBeaver 3D Graph — Runtime Capability Probe</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 0; padding: 1.5rem; }
+  h1 { font-size: 1.1rem; margin: 0 0 1rem; }
+  .row { display: flex; align-items: center; gap: .6rem; padding: .5rem .75rem;
+         border: 1px solid rgba(128,128,128,.3); border-radius: 8px; margin-bottom: .6rem; }
+  .badge { font-weight: 600; padding: .15rem .55rem; border-radius: 999px; font-size: .8rem; }
+  .ok   { background: #16833322; color: #16a34a; }
+  .fail { background: #b91c1c22; color: #ef4444; }
+  .pend { background: #78716c22; color: #a8a29e; }
+  .label { font-weight: 600; }
+  .detail { opacity: .75; font-size: .85rem; }
+  #summary { margin-top: 1rem; font-weight: 600; }
+  code { background: rgba(128,128,128,.15); padding: .05rem .3rem; border-radius: 4px; }
+</style>
+</head>
+<body>
+<h1>DBeaver 3D Graph — Runtime Capability Probe</h1>
+<p class="detail">Verifies the two runtime unknowns for embedding the Pixi.js
+viz engine in an SWT <code>Browser</code>. Open this file directly in a browser,
+or load it from the Java spike harness.</p>
+
+<div class="row" id="row-webgl">
+  <span class="badge pend" id="b-webgl">…</span>
+  <span class="label">WebGL 2 context</span>
+  <span class="detail" id="d-webgl">testing…</span>
+</div>
+<div class="row" id="row-webgl1">
+  <span class="badge pend" id="b-webgl1">…</span>
+  <span class="label">WebGL 1 fallback</span>
+  <span class="detail" id="d-webgl1">testing…</span>
+</div>
+<div class="row" id="row-worker">
+  <span class="badge pend" id="b-worker">…</span>
+  <span class="label">Blob-URL Web Worker</span>
+  <span class="detail" id="d-worker">testing…</span>
+</div>
+
+<div id="summary">Running…</div>
+
+<script>
+function setResult(key, ok, detail) {
+  var b = document.getElementById('b-' + key);
+  var d = document.getElementById('d-' + key);
+  b.textContent = ok ? 'PASS' : 'FAIL';
+  b.className = 'badge ' + (ok ? 'ok' : 'fail');
+  d.textContent = detail;
+}
+
+var results = {};
+function record(key, ok, detail) {
+  results[key] = { ok: ok, detail: detail };
+  setResult(key, ok, detail);
+  maybeReport();
+}
+
+// --- Test 1: WebGL 2 ---
+(function testWebGL2() {
+  try {
+    var c = document.createElement('canvas');
+    var gl = c.getContext('webgl2');
+    if (gl) {
+      var dbg = gl.getExtension('WEBGL_debug_renderer_info');
+      var renderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : 'unknown renderer';
+      record('webgl', true, 'OK — ' + renderer);
+    } else {
+      record('webgl', false, 'webgl2 context is null');
+    }
+  } catch (e) { record('webgl', false, 'exception: ' + e.message); }
+})();
+
+// --- Test 2: WebGL 1 fallback ---
+(function testWebGL1() {
+  try {
+    var c = document.createElement('canvas');
+    var gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+    record('webgl1', !!gl, gl ? 'OK' : 'webgl context is null');
+  } catch (e) { record('webgl1', false, 'exception: ' + e.message); }
+})();
+
+// --- Test 3: Blob-URL Web Worker (the exact pattern LayoutClient uses) ---
+(function testBlobWorker() {
+  try {
+    var src = 'self.onmessage=function(e){self.postMessage(e.data*2);};';
+    var blob = new Blob([src], { type: 'application/javascript' });
+    var url = URL.createObjectURL(blob);
+    var w = new Worker(url);
+    var done = false;
+    var timer = setTimeout(function () {
+      if (!done) { done = true; record('worker', false, 'no response in 3s (blob worker blocked?)'); }
+    }, 3000);
+    w.onmessage = function (e) {
+      if (done) return;
+      done = true; clearTimeout(timer);
+      var ok = e.data === 42;
+      record('worker', ok, ok ? 'OK — round-trip succeeded' : 'unexpected reply: ' + e.data);
+      w.terminate(); URL.revokeObjectURL(url);
+    };
+    w.onerror = function (err) {
+      if (done) return;
+      done = true; clearTimeout(timer);
+      record('worker', false, 'worker error: ' + (err.message || 'blocked'));
+    };
+    w.postMessage(21);
+  } catch (e) { record('worker', false, 'exception: ' + e.message); }
+})();
+
+function maybeReport() {
+  if (!(results.webgl && results.webgl1 && results.worker)) return;
+  var webglOk = results.webgl.ok || results.webgl1.ok;
+  var verdict = (results.webgl.ok && results.worker.ok)
+      ? 'GO — full fast path available (WebGL 2 + blob worker).'
+      : webglOk && results.worker.ok
+        ? 'GO (degraded) — WebGL 1 only, blob worker OK.'
+        : webglOk && !results.worker.ok
+          ? 'GO (fallback) — WebGL OK but NO blob worker; use the main-thread isStatic layout path.'
+          : 'NO-GO — no WebGL context; the Pixi EdgeMesh renderer cannot run in this backend.';
+  document.getElementById('summary').textContent = verdict;
+
+  // If running inside the SWT Browser harness, report back to Java.
+  if (typeof window.__spikeReport === 'function') {
+    try { window.__spikeReport(JSON.stringify({ results: results, verdict: verdict })); } catch (e) {}
+  }
+}
+</script>
+</body>
+</html>

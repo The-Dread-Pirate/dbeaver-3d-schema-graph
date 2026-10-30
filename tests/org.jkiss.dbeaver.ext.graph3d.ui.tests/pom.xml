@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+      Standalone plain-Maven JUnit 5 module for the PURE graph core
+      (GraphBuilder / GraphModel / GraphSource), which has zero DBeaver,
+      Eclipse or OSGi dependencies. Deliberately declares NO <parent>: it must
+      not inherit the aggregator's Tycho build plugins, so it compiles and runs
+      with a vanilla JDK + Surefire and needs no p2 target platform. It is still
+      built by `mvn verify` at the repo root via <modules> aggregation.
+
+      It compiles the three pure source files straight out of the plugin bundle
+      (build-helper add-source + add-test-source) rather than depending on the
+      eclipse-plugin artifact, so the unit under test is the exact production
+      source with no OSGi packaging in the loop.
+    -->
+
+    <groupId>org.jkiss.dbeaver.ext.graph3d</groupId>
+    <artifactId>org.jkiss.dbeaver.ext.graph3d.ui.tests</artifactId>
+    <version>0.1.4-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <junit.version>5.10.3</junit.version>
+        <plugin.src>${project.basedir}/../../plugins/org.jkiss.dbeaver.ext.graph3d.ui/src</plugin.src>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Compile the three pure production sources as part of this module. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <id>add-pure-core-sources</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${plugin.src}</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <release>21</release>
+                    <!--
+                      The plugin source tree also contains DBeaver-dependent
+                      classes (SchemaMetadataExtractor, Graph3DView) that will
+                      not compile without the p2 target platform. Restrict the
+                      imported compile unit to the pure core only.
+                    -->
+                    <includes>
+                        <include>org/jkiss/dbeaver/ext/graph3d/ui/GraphModel.java</include>
+                        <include>org/jkiss/dbeaver/ext/graph3d/ui/model/GraphSource.java</include>
+                        <include>org/jkiss/dbeaver/ext/graph3d/ui/model/GraphBuilder.java</include>
+                        <include>org/jkiss/dbeaver/ext/graph3d/ui/model/Json.java</include>
+                        <include>org/jkiss/dbeaver/ext/graph3d/ui/model/NodeDetails.java</include>
+                        <include>org/jkiss/dbeaver/ext/graph3d/ui/model/NavigationController.java</include>
+                    </includes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>

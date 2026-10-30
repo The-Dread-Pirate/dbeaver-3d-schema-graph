@@ -1,0 +1,37 @@
+# --- Maven / Tycho build output ---
+target/
+*.jar
+*.war
+*.class
+
+# --- Build logs (stray capture files) ---
+build-*.log
+*.log
+
+# --- Eclipse / OSGi dev metadata ---
+.metadata/
+.settings/
+.project
+.classpath
+bin/
+.polyglot.*
+.tycho-consumer-*
+
+# --- IDE ---
+.idea/
+*.iml
+.vscode/
+
+# --- KiroCrew / local agent config (machine-specific) ---
+.kiro/
+
+# --- OS cruft ---
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# --- Portable toolchain (lives outside the repo; never commit if copied in) ---
+/toolchain/
+
+# --- Node (only if a renderer build is added later) ---
+node_modules/

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+    <extension point="org.eclipse.ui.views">
+        <category
+            id="org.jkiss.dbeaver.ext.graph3d.ui.category"
+            name="DBeaver 3D Graph"/>
+        <view
+            id="org.jkiss.dbeaver.ext.graph3d.ui.Graph3DView"
+            name="3D Schema Graph"
+            category="org.jkiss.dbeaver.ext.graph3d.ui.category"
+            class="org.jkiss.dbeaver.ext.graph3d.ui.Graph3DView"
+            restorable="true">
+        </view>
+    </extension>
+
+    <!-- Command that opens the selected schema/catalog in the 3D graph. -->
+    <extension point="org.eclipse.ui.commands">
+        <command
+            id="org.jkiss.dbeaver.ext.graph3d.ui.openGraph"
+            name="Open in 3D Schema Graph"
+            categoryId="org.eclipse.ui.category.views"/>
+    </extension>
+
+    <extension point="org.eclipse.ui.handlers">
+        <handler
+            commandId="org.jkiss.dbeaver.ext.graph3d.ui.openGraph"
+            class="org.jkiss.dbeaver.ext.graph3d.ui.OpenGraph3DHandler"/>
+    </extension>
+
+    <!-- Context-menu entry on Database Navigator nodes. The handler itself
+         validates that the selection is a DBSObjectContainer, so the item is
+         offered broadly and no-ops on non-container nodes. Same popup DBeaver's
+         own navigator tools use (popup:org.eclipse.ui.popup.any?after=tools). -->
+    <extension point="org.eclipse.ui.menus">
+        <menuContribution allPopups="false"
+            locationURI="popup:org.eclipse.ui.popup.any?after=tools">
+            <command
+                commandId="org.jkiss.dbeaver.ext.graph3d.ui.openGraph"
+                label="Open in 3D Schema Graph"
+                style="push">
+                <visibleWhen checkEnabled="false">
+                    <with variable="selection">
+                        <count value="1"/>
+                        <iterate>
+                            <adapt type="org.jkiss.dbeaver.model.struct.DBSObject"/>
+                        </iterate>
+                    </with>
+                </visibleWhen>
+            </command>
+        </menuContribution>
+    </extension>
+</plugin>

@@ -1,0 +1,92 @@
+/*
+ * DBeaver 3D Schema Graph
+ * Licensed under EPL-2.0.
+ */
+package org.jkiss.dbeaver.ext.graph3d.ui;
+
+import org.jkiss.dbeaver.ext.graph3d.ui.model.Json;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * In-memory graph model handed to the JS viz layer. Field names mirror the
+ * reused Obsidian renderer's {@code GraphModel} contract so the bundled
+ * JavaScript consumes it unchanged:
+ *
+ * <pre>
+ *   node: { id, path, name, inCount, outCount, unresolvedCount }
+ *   edge: { source, target, weight }
+ * </pre>
+ *
+ * {@code node.id} is the dense array index; edges reference nodes by index.
+ * For DBeaver, {@code path} is the fully-qualified object id (used to resolve
+ * back to a {@code DBSObject} for navigation) and {@code name} is the display
+ * name.
+ */
+public final class GraphModel {
+
+    /** A table/entity node. */
+    public record Node(int id, String path, String name,
+                       int inCount, int outCount, int unresolvedCount) {
+    }
+
+    /** A foreign-key relationship, node index to node index. */
+    public record Edge(int source, int target, int weight) {
+    }
+
+    private final List<Node> nodes = new ArrayList<>();
+    private final List<Edge> edges = new ArrayList<>();
+
+    public List<Node> getNodes() {
+        return nodes;
+    }
+
+    public List<Edge> getEdges() {
+        return edges;
+    }
+
+    public void addNode(Node node) {
+        nodes.add(node);
+    }
+
+    public void addEdge(Edge edge) {
+        edges.add(edge);
+    }
+
+    /**
+     * Minimal, dependency-free JSON serialization. Avoids pulling in a JSON
+     * bundle for a shape this small and fixed. Strings are escaped for the
+     * characters that are illegal in a JSON string literal.
+     */
+    public String toJson() {
+        StringBuilder sb = new StringBuilder(256 + nodes.size() * 64 + edges.size() * 32);
+        sb.append("{\"nodes\":[");
+        for (int i = 0; i < nodes.size(); i++) {
+            Node n = nodes.get(i);
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append("{\"id\":").append(n.id())
+              .append(",\"path\":").append(Json.quote(n.path()))
+              .append(",\"name\":").append(Json.quote(n.name()))
+              .append(",\"inCount\":").append(n.inCount())
+              .append(",\"outCount\":").append(n.outCount())
+              .append(",\"unresolvedCount\":").append(n.unresolvedCount())
+              .append('}');
+        }
+        sb.append("],\"edges\":[");
+        for (int i = 0; i < edges.size(); i++) {
+            Edge e = edges.get(i);
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append("{\"source\":").append(e.source())
+              .append(",\"target\":").append(e.target())
+              .append(",\"weight\":").append(e.weight())
+              .append('}');
+        }
+        sb.append("]}");
+        return sb.toString();
+    }
+}
