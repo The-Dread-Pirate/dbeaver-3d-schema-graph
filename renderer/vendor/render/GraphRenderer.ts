@@ -202,6 +202,10 @@ export class GraphRenderer {
 	private labelZoomThreshold = DEFAULT_LABEL_ZOOM_THRESHOLD;
 	/** Master label switch from the panel. */
 	private labelsVisible = true;
+	/** When true, show labels ONLY for the hovered node and its direct
+	 *  neighbors — nothing else is named. Keeps the scene clean and makes hover
+	 *  the way you read a table's name and what it connects to. */
+	private labelsHoverOnly = false;
 	private labelMaxCount = LABEL_COUNT_LIMIT;
 	/** true: labels live in world scale and tiny ones hide (scamin). */
 	private labelScaleWithZoom = true;
@@ -1199,6 +1203,27 @@ export class GraphRenderer {
 			return true;
 		};
 
+		// Hover-only mode: name ONLY the hovered node and its direct neighbors,
+		// hide everything else. This is the primary label mode for the DBeaver
+		// view — the graph stays uncluttered and hovering a table reveals its
+		// name plus the names of everything it connects to.
+		if (this.labelsHoverOnly) {
+			if (this.hoveredId !== null && this.labelsVisible) {
+				const candidates = [this.hoveredId, ...this.hoverNeighbors];
+				for (const i of candidates) {
+					if (labeled.has(i) || !isOnScreen(i)) continue;
+					if (this.hiddenMask !== null && this.hiddenMask[i] === 1) continue;
+					if (this.depthScales !== null && this.depthScales[i] === 0) continue;
+					takeLabel(i);
+				}
+			}
+			for (const [i, label] of this.labels) {
+				if (!labeled.has(i)) label.visible = false;
+			}
+			if (creationSkipped) this.cullDirty = true;
+			return;
+		}
+
 		// The node the user is acting on always keeps its name. These boxes are
 		// reserved before decorative labels so nearby text yields to them.
 		for (const i of [this.selectedId, this.hoveredId]) {
@@ -1301,6 +1326,13 @@ export class GraphRenderer {
 			for (const label of this.labels.values()) label.destroy();
 			this.labels.clear();
 		}
+		this.cullDirty = true;
+	}
+
+	/** Enable/disable hover-only labels (name just the hovered node + its
+	 *  neighbors). Triggers a re-label on the next frame. */
+	setLabelsHoverOnly(hoverOnly: boolean): void {
+		this.labelsHoverOnly = hoverOnly;
 		this.cullDirty = true;
 	}
 
@@ -1431,6 +1463,9 @@ export class GraphRenderer {
 	private orbiting = false;
 	private orbitLastX = 0;
 	private orbitLastY = 0;
+	/** True once an active orbit has actually rotated the view. Lets a press
+	 *  that started an orbit but never moved fall through to a node click. */
+	private orbitMoved = false;
 	private rmbPanning = false;
 	private rmbMoved = false;
 	private rmbLastX = 0;
@@ -1469,6 +1504,19 @@ export class GraphRenderer {
 			return;
 		}
 		if (this.orbiting) {
+			// A press on a node also arms a pending click; only treat this as an
+			// orbit (not a click) once the pointer moves past the drag threshold,
+			// so a steady click on a node still selects it. Keep the orbit anchor
+			// following the pointer meanwhile, so the first real rotation isn't a
+			// jump from the original press point.
+			if (!this.orbitMoved && this.pressedEvent && !isDragGesture(
+				this.pressedEvent.clientX, this.pressedEvent.clientY,
+				event.clientX, event.clientY, DRAG_THRESHOLD_PX)) {
+				this.orbitLastX = event.clientX;
+				this.orbitLastY = event.clientY;
+				return;
+			}
+			this.orbitMoved = true;
 			// Orbit around the scene center, not the camera's own axis.
 			this.camera.orbit(
 				(event.clientX - this.orbitLastX) * 0.005,
@@ -1645,15 +1693,22 @@ export class GraphRenderer {
 		}
 		const nodeId = this.findNodeAt(event.clientX, event.clientY);
 		if (nodeId === null) {
-			// Empty-area drag rotates the 3D view; hold Alt to pan instead.
-			if (!event.altKey) this.startOrbit(event);
+			// Empty-area drag rotates the 3D view.
+			this.startOrbit(event);
 			return;
 		}
 		this.pressedId = nodeId;
 		this.pressedEvent = event;
-		// Block panning immediately: the press landed on a node, so this
-		// gesture is either a click or a node drag, never a camera pan.
+		// Block panning immediately: the press landed on a node.
 		if (this.viewport) this.viewport.suppressPan = true;
+		// Left-drag spins the model wherever you grabbed it — a press on a node
+		// ALSO starts an orbit, so dragging rotates the view regardless of
+		// whether you happened to land on an object. A press that doesn't move
+		// still fires the node click on release (orbit never engaged). Hold Alt
+		// to reposition the node instead of orbiting.
+		if (this.camera.enabled && !event.altKey) {
+			this.startOrbit(event);
+		}
 	};
 
 	/** Begin an orbit drag; a no-op in flat mode, where there is nothing to
@@ -1661,6 +1716,7 @@ export class GraphRenderer {
 	private startOrbit(event: PointerEvent): void {
 		if (!this.camera.enabled) return;
 		this.orbiting = true;
+		this.orbitMoved = false;
 		this.orbitLastX = event.clientX;
 		this.orbitLastY = event.clientY;
 		if (this.viewport) this.viewport.suppressPan = true;
@@ -1683,6 +1739,13 @@ export class GraphRenderer {
 		}
 		if (this.orbiting) {
 			this.orbiting = false;
+			// A press that started an orbit over a node but never rotated is a
+			// plain click: dispatch it so selecting/opening a node still works.
+			if (!this.orbitMoved && this.pressedId !== null && this.pressedEvent) {
+				this.clickDispatcher.press(this.pressedId, this.pressedEvent);
+			}
+			this.pressedId = null;
+			this.pressedEvent = null;
 			if (this.viewport) this.viewport.suppressPan = false;
 			return;
 		}

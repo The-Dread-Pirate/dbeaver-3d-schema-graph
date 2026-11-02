@@ -79,6 +79,9 @@ class Graph3DHost {
     };
     this.renderer = new GraphRenderer(callbacks);
     await this.renderer.init(this.graphHost);
+    // Clean canvas by default: only the hovered table and its connections are
+    // named, so the graph isn't a wall of text. Hovering reveals names.
+    this.renderer.setLabelsHoverOnly(true);
 
     // The SWT view often has zero size at init, so Pixi creates a 0x0 canvas
     // and draws nothing. DBeaver/SWT panes also resize without firing

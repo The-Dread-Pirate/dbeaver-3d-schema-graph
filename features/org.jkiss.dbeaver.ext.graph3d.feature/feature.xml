@@ -2,7 +2,7 @@
 <feature
       id="org.jkiss.dbeaver.ext.graph3d.feature"
       label="DBeaver 3D Schema Graph"
-      version="0.1.7.qualifier"
+      version="0.1.8.qualifier"
       provider-name="DBeaver 3D Schema Graph contributors"
       license-feature-version="0.0.0">
 
