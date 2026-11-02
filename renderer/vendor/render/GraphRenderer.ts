@@ -227,6 +227,11 @@ export class GraphRenderer {
 	private positionsDirty = false;
 	private edgesDirty = false;
 	private cullDirty = false;
+	/** Set when the camera moved (orbit/strafe/fly) during input. Pointer
+	 *  events fire faster than the 60 fps ticker, so instead of reprojecting
+	 *  the whole graph on every one, the handlers just raise this flag and the
+	 *  ticker runs a single reproject() per rendered frame. */
+	private cameraDirty = false;
 	private hoveredId: number | null = null;
 	/** Neighbors of the hovered node (undirected), for hover emphasis. */
 	private hoverNeighbors = new Set<number>();
@@ -314,7 +319,7 @@ export class GraphRenderer {
 				event.preventDefault();
 				event.stopImmediatePropagation();
 				this.camera.fly(-event.deltaY * 1.5);
-				this.reproject();
+				this.cameraDirty = true;
 			},
 			{ capture: true, passive: false }
 		);
@@ -992,6 +997,14 @@ export class GraphRenderer {
 		if (this.contextLost) return;
 		if (!this.model || !this.positions || !this.radii) return;
 
+		// A camera move (orbit/strafe/fly) during this frame's input is applied
+		// here exactly once, no matter how many pointer events arrived — this is
+		// what keeps spinning smooth instead of reprojecting per event.
+		if (this.cameraDirty) {
+			this.cameraDirty = false;
+			this.reproject();
+		}
+
 		// Close part of the gap to the worker's latest frame. Once the graph is
 		// settled `smoothing` goes false and the projection stops re-running,
 		// so an idle canvas costs nothing.
@@ -1379,7 +1392,7 @@ export class GraphRenderer {
 				// Strafe the camera: the vanishing point stays glued to the
 				// screen center, so flight always converges into the middle.
 				this.camera.strafe(-dx, -dy);
-				this.reproject();
+				this.cameraDirty = true; // reprojected once in renderFrame
 			} else {
 				this.world.position.x += dx;
 				this.world.position.y += dy;
@@ -1395,7 +1408,10 @@ export class GraphRenderer {
 			);
 			this.orbitLastX = event.clientX;
 			this.orbitLastY = event.clientY;
-			this.reproject();
+			// Many pointermoves land between two rendered frames; coalesce them
+			// into one reproject() driven by the ticker instead of doing the
+			// full projection + edge/alpha/hull rebuild on every event.
+			this.cameraDirty = true;
 			return;
 		}
 		if (this.lassoPoints) {
