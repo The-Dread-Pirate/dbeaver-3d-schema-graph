@@ -1,0 +1,23 @@
+{
+  "name": "graph3d-renderer",
+  "private": true,
+  "version": "0.1.4",
+  "description": "Self-contained browser bundle for the DBeaver 3D Schema Graph plugin: the vendored MIT advanced_graph_view Pixi renderer (vendor/), wired to the plugin's GraphModel/navigate bridges. Built with esbuild, output to ../plugins/org.jkiss.dbeaver.ext.graph3d.ui/web/.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -noEmit"
+  },
+  "dependencies": {
+    "d3-force-3d": "^3.0.6",
+    "pixi.js": "^8.19.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "typescript": "^5.6.3"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

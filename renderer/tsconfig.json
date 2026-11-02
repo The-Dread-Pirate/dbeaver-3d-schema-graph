@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "types": [],
+    "baseUrl": ".",
+    "paths": {
+      "@agv/*": ["./vendor/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "vendor/**/*.ts"]
+}
