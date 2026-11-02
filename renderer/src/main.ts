@@ -27,7 +27,7 @@ import { encodeByConnectivity } from "./encoding";
 /** Shape pushed from Java (GraphModel.toJson). pathToId is built here. */
 interface WireModel {
   nodes: GraphNode[];
-  edges: { source: number; target: number; weight: number }[];
+  edges: { source: number; target: number; weight: number; kind?: string }[];
 }
 
 /** Bridges injected by the SWT host as BrowserFunctions. Optional so the page

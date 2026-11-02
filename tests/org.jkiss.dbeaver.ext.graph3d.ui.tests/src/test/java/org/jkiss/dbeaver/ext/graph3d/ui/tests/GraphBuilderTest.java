@@ -32,6 +32,7 @@ class GraphBuilderTest {
         assertEquals(0, m.getNodes().size());
         assertEquals(0, m.getEdges().size());
         assertEquals("{\"nodes\":[],\"edges\":[]}", m.toJson());
+        // (empty graph has no edges, so the new edge "kind" field never appears)
     }
 
     @Test
@@ -189,9 +190,43 @@ class GraphBuilderTest {
             + "{\"id\":0,\"path\":\"A\",\"name\":\"A\",\"inCount\":0,\"outCount\":1,\"unresolvedCount\":0},"
             + "{\"id\":1,\"path\":\"B\",\"name\":\"B\",\"inCount\":1,\"outCount\":0,\"unresolvedCount\":0}"
             + "],\"edges\":["
-            + "{\"source\":0,\"target\":1,\"weight\":1}"
+            + "{\"source\":0,\"target\":1,\"weight\":1,\"kind\":\"fk\"}"
             + "]}";
         assertEquals(expected, m.toJson());
+    }
+
+    @Test
+    @DisplayName("a view-reference association becomes an edge of kind \"view\"")
+    void viewReferenceEdge() {
+        // view_orders references table orders in its definition
+        GraphModel m = GraphBuilder.build(FakeGraphSource.create()
+            .entity("v_orders", "v_orders")
+            .entity("orders", "orders")
+            .viewRef("v_orders", "orders"));
+
+        assertEquals(1, m.getEdges().size());
+        GraphModel.Edge e = m.getEdges().get(0);
+        assertEquals(0, e.source());
+        assertEquals(1, e.target());
+        assertEquals(GraphModel.KIND_VIEW, e.kind());
+        // The view's reference counts toward its out-degree like any edge.
+        assertEquals(1, node(m, 0).outCount());
+        assertEquals(1, node(m, 1).inCount());
+    }
+
+    @Test
+    @DisplayName("fk and view edges coexist, each keeping its own kind")
+    void mixedEdgeKinds() {
+        GraphModel m = GraphBuilder.build(FakeGraphSource.create()
+            .entity("orders").entity("customers").entity("v_sales")
+            .fk("orders", "customers")
+            .viewRef("v_sales", "orders"));
+
+        assertEquals(2, m.getEdges().size());
+        GraphModel.Edge fk = m.getEdges().get(0);
+        GraphModel.Edge view = m.getEdges().get(1);
+        assertEquals(GraphModel.KIND_FK, fk.kind());
+        assertEquals(GraphModel.KIND_VIEW, view.kind());
     }
 
     @Test

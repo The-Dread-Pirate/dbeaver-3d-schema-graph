@@ -16,6 +16,10 @@ export interface GraphEdge {
 	source: number;
 	target: number;
 	weight: number;
+	/** Relationship kind: "fk" (default) or "view" (a view referencing a table
+	 *  in its SQL definition). Optional so edges built without it default to FK.
+	 *  Added for the DBeaver host; unused by the Obsidian link graph. */
+	kind?: string;
 }
 
 export interface GraphModel {

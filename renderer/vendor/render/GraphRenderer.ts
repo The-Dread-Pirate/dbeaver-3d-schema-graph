@@ -165,6 +165,13 @@ export class GraphRenderer {
 	private destroyed = false;
 	private world = new Container();
 	private edgeMesh: EdgeMesh | null = null;
+	/** Separate mesh for "view -> referenced table" edges, drawn in a distinct
+	 *  color so they read as a different kind of relationship than FKs. Null
+	 *  when the model has no view-reference edges. */
+	private viewEdgeMesh: EdgeMesh | null = null;
+	/** Color for view-reference edges (a cyan/teal that contrasts the FK line
+	 *  color on both light and dark themes). */
+	private static readonly VIEW_EDGE_COLOR = 0x29b6d8;
 	private hullGraphics = new Graphics();
 	private trailGraphics = new Graphics();
 	private trailNodeIds: number[] = [];
@@ -350,15 +357,27 @@ export class GraphRenderer {
 		this.radii = new Float32Array(model.nodes.length);
 
 		this.edgeMesh?.destroy();
-		const edgePairs = new Uint32Array(model.edges.length * 2);
-		for (let i = 0; i < model.edges.length; i++) {
-			edgePairs[i * 2] = model.edges[i].source;
-			edgePairs[i * 2 + 1] = model.edges[i].target;
+		this.viewEdgeMesh?.destroy();
+		this.viewEdgeMesh = null;
+		// Split edges by kind: foreign keys in the main mesh, view->table
+		// references in a separate mesh so they can carry a distinct color.
+		const fkPairs: number[] = [];
+		const viewPairs: number[] = [];
+		for (const edge of model.edges) {
+			const bucket = edge.kind === "view" ? viewPairs : fkPairs;
+			bucket.push(edge.source, edge.target);
 		}
-		this.edgeMesh = new EdgeMesh(edgePairs, this.colors.edge, this.edgeOpacity);
+		this.edgeMesh = new EdgeMesh(new Uint32Array(fkPairs), this.colors.edge, this.edgeOpacity);
 		this.edgeMesh.setVisible(this.edgesVisible);
 		this.edgeMesh.setWidth(this.edgeWidth);
 		this.world.addChildAt(this.edgeMesh.mesh, 1); // above hulls, below nodes
+		if (viewPairs.length > 0) {
+			this.viewEdgeMesh = new EdgeMesh(
+				new Uint32Array(viewPairs), GraphRenderer.VIEW_EDGE_COLOR, this.edgeOpacity);
+			this.viewEdgeMesh.setVisible(this.edgesVisible);
+			this.viewEdgeMesh.setWidth(this.edgeWidth);
+			this.world.addChildAt(this.viewEdgeMesh.mesh, 1);
+		}
 
 		this.nodeLayer.removeChildren();
 		for (const label of this.labels.values()) label.destroy();
@@ -655,7 +674,7 @@ export class GraphRenderer {
 		this.hiddenMask = mask;
 		this.syncEdgeVisibility();
 		if (this.positions) {
-			this.edgeMesh?.updatePositions(this.positions, this.camera.enabled ? this.depthScales : null);
+			this.updateEdgeMeshPositions();
 		}
 		this.cullDirty = true;
 	}
@@ -673,6 +692,17 @@ export class GraphRenderer {
 		);
 		this.mergedHiddenMask = buffer;
 		this.edgeMesh.setHiddenNodes(mask);
+		this.viewEdgeMesh?.setHiddenNodes(mask);
+	}
+
+	/** Update both edge meshes (FK + view-reference) from the current projected
+	 *  positions. The view mesh shares the node positions; only its color and
+	 *  pair set differ. */
+	private updateEdgeMeshPositions(): void {
+		if (!this.positions) return;
+		const depth = this.camera.enabled ? this.depthScales : null;
+		this.edgeMesh?.updatePositions(this.positions, depth);
+		this.viewEdgeMesh?.updatePositions(this.positions, depth);
 	}
 
 	/** Final sprite diameter for one node: base size, depth, hover/highlight
@@ -860,6 +890,7 @@ export class GraphRenderer {
 		// draws its own links on top of it.
 		if (wasExploring !== (overlay !== null)) {
 			this.edgeMesh?.setAlpha(overlay ? this.edgeOpacity * EXPLORE_BACKGROUND_EDGE_DIM : this.edgeOpacity);
+		this.viewEdgeMesh?.setAlpha(overlay ? this.edgeOpacity * EXPLORE_BACKGROUND_EDGE_DIM : this.edgeOpacity);
 		}
 		// Explore owns node emphasis even though hit testing still drives the
 		// tooltip and direct clicks. Clear the old normal-mode hover styling.
@@ -1070,7 +1101,7 @@ export class GraphRenderer {
 
 		if (this.edgesDirty) {
 			this.edgesDirty = false;
-			this.edgeMesh?.updatePositions(this.positions, this.camera.enabled ? this.depthScales : null);
+			this.updateEdgeMeshPositions();
 			this.redrawTrail();
 			this.redrawExplore();
 			this.redrawPath();
@@ -1280,6 +1311,9 @@ export class GraphRenderer {
 		this.edgeMesh?.setVisible(show);
 		this.edgeMesh?.setAlpha(opacity);
 		this.edgeMesh?.setWidth(width);
+		this.viewEdgeMesh?.setVisible(show);
+		this.viewEdgeMesh?.setAlpha(opacity);
+		this.viewEdgeMesh?.setWidth(width);
 	}
 
 	/**
@@ -1732,6 +1766,8 @@ export class GraphRenderer {
 		this.viewport = null;
 		this.edgeMesh?.destroy();
 		this.edgeMesh = null;
+		this.viewEdgeMesh?.destroy();
+		this.viewEdgeMesh = null;
 		const app = this.app;
 		this.app = null;
 		this.host = null;

@@ -75,11 +75,12 @@ public final class GraphBuilder {
                 outCount[sourceId]++;
                 Integer targetId = idByFullId.get(fk.targetFullId());
                 if (targetId == null) {
-                    // FK points outside this container -> count but do not draw.
+                    // Reference points outside this container -> count, don't draw.
                     unresolved[sourceId]++;
                     continue;
                 }
-                model.addEdge(new GraphModel.Edge(sourceId, targetId, 1));
+                String kind = fk.kind() != null ? fk.kind() : GraphModel.KIND_FK;
+                model.addEdge(new GraphModel.Edge(sourceId, targetId, 1, kind));
                 inCount[targetId]++;
             }
         }

@@ -7,17 +7,24 @@ package org.jkiss.dbeaver.ext.graph3d.ui;
 import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.ext.graph3d.ui.model.GraphBuilder;
 import org.jkiss.dbeaver.ext.graph3d.ui.model.GraphSource;
+import org.jkiss.dbeaver.ext.graph3d.ui.model.ViewReferenceFinder;
+import org.jkiss.dbeaver.model.DBPEvaluationContext;
+import org.jkiss.dbeaver.model.DBPQualifiedObject;
+import org.jkiss.dbeaver.model.DBPScriptObject;
 import org.jkiss.dbeaver.model.DBUtils;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.struct.DBSEntity;
 import org.jkiss.dbeaver.model.struct.DBSEntityAssociation;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 import org.jkiss.dbeaver.model.struct.DBSObjectContainer;
+import org.jkiss.dbeaver.model.struct.rdb.DBSTable;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -85,6 +92,14 @@ public final class SchemaMetadataExtractor {
         List<GraphSource.SourceEntity> entities = new ArrayList<>();
         Map<String, List<GraphSource.SourceAssociation>> assocByFullId = new HashMap<>();
 
+        // Views we read FKs for, remembered so a second pass can parse their SQL
+        // definitions for referenced tables once every entity name is known.
+        List<DBSTable> views = new ArrayList<>();
+        // Case-insensitive name -> fullId for every included entity. Both the
+        // simple name and the fully-qualified name are registered so a
+        // reference in either form in the view SQL resolves.
+        Map<String, String> nameToFullId = new LinkedHashMap<>();
+
         int totalEntities = 0;
         boolean truncated = false;
         boolean cancelled = false;
@@ -108,6 +123,14 @@ public final class SchemaMetadataExtractor {
 
                 String sourceFullId = DBUtils.getObjectFullId(entity);
                 entities.add(new GraphSource.SourceEntity(sourceFullId, entity.getName()));
+                registerName(nameToFullId, entity.getName(), sourceFullId);
+                if (entity instanceof DBPQualifiedObject qualified) {
+                    registerName(nameToFullId,
+                        qualified.getFullyQualifiedName(DBPEvaluationContext.DML), sourceFullId);
+                }
+                if (entity instanceof DBSTable table && table.isView()) {
+                    views.add(table);
+                }
 
                 List<GraphSource.SourceAssociation> fks = new ArrayList<>();
                 Collection<? extends DBSEntityAssociation> associations = entity.getAssociations(monitor);
@@ -125,6 +148,40 @@ public final class SchemaMetadataExtractor {
             }
         }
 
+        // Second pass: for each view, read its SQL definition and name-match
+        // referenced tables (Option B). Best-effort — a view whose DDL cannot be
+        // read is simply left without reference edges, never failing the extract.
+        if (!cancelled) {
+            for (DBSTable view : views) {
+                if (monitor.isCanceled()) {
+                    cancelled = true;
+                    break;
+                }
+                if (!(view instanceof DBPScriptObject scriptObject)) {
+                    continue;
+                }
+                String viewFullId = DBUtils.getObjectFullId(view);
+                String sql;
+                try {
+                    sql = scriptObject.getObjectDefinitionText(monitor, DBPScriptObject.EMPTY_OPTIONS);
+                } catch (Exception e) {
+                    // DDL unavailable for this view (permissions, dialect) -> skip it.
+                    continue;
+                }
+                List<String> referenced =
+                    ViewReferenceFinder.findReferencedFullIds(sql, nameToFullId, viewFullId);
+                if (referenced.isEmpty()) {
+                    continue;
+                }
+                List<GraphSource.SourceAssociation> refs =
+                    assocByFullId.computeIfAbsent(viewFullId, k -> new ArrayList<>());
+                for (String targetFullId : referenced) {
+                    refs.add(new GraphSource.SourceAssociation(
+                        viewFullId, targetFullId, GraphSource.KIND_VIEW));
+                }
+            }
+        }
+
         GraphSource source = new GraphSource() {
             @Override
             public List<SourceEntity> entities() {
@@ -139,5 +196,17 @@ public final class SchemaMetadataExtractor {
 
         GraphModel model = GraphBuilder.build(source);
         return new ExtractResult(model, entities.size(), totalEntities, truncated, cancelled);
+    }
+
+    /**
+     * Register a lower-cased name -> fullId mapping for view-reference matching.
+     * The first entity to claim a name wins, so a later ambiguous collision does
+     * not silently steal an earlier table's name; blank names are ignored.
+     */
+    private static void registerName(Map<String, String> nameToFullId, String name, String fullId) {
+        if (name == null || name.isBlank()) {
+            return;
+        }
+        nameToFullId.putIfAbsent(name.toLowerCase(Locale.ROOT), fullId);
     }
 }

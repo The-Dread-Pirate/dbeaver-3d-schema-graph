@@ -45,6 +45,13 @@ final class FakeGraphSource implements GraphSource {
         return this;
     }
 
+    /** Add a view-reference association viewFullId -> tableFullId. */
+    FakeGraphSource viewRef(String viewFullId, String tableFullId) {
+        assoc.computeIfAbsent(viewFullId, k -> new ArrayList<>())
+             .add(new SourceAssociation(viewFullId, tableFullId, GraphSource.KIND_VIEW));
+        return this;
+    }
+
     /** Add a raw (possibly null-bearing) association, to test defensive paths. */
     FakeGraphSource rawAssociation(String sourceFullId, SourceAssociation a) {
         assoc.computeIfAbsent(sourceFullId, k -> new ArrayList<>()).add(a);

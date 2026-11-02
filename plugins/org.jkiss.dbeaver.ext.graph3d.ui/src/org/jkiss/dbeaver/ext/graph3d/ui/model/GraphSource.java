@@ -28,13 +28,28 @@ public interface GraphSource {
     }
 
     /**
-     * A foreign-key association originating at one entity and referencing
-     * another, each identified by full id. {@code targetFullId} may point at an
-     * entity not present in {@link #entities()} (e.g. a cross-schema FK); the
-     * builder decides how to treat such dangling references.
+     * An association originating at one entity and referencing another, each
+     * identified by full id. {@code targetFullId} may point at an entity not
+     * present in {@link #entities()} (e.g. a cross-schema FK); the builder
+     * decides how to treat such dangling references.
+     *
+     * <p>{@code kind} is the relationship type -- {@link #KIND_FK} for a foreign
+     * key, {@link #KIND_VIEW} for a view that references a table in its SQL
+     * definition -- carried through to the graph edge so the renderer can style
+     * the two differently.
      */
-    record SourceAssociation(String sourceFullId, String targetFullId) {
+    record SourceAssociation(String sourceFullId, String targetFullId, String kind) {
+
+        /** A foreign-key association (the default kind). */
+        public SourceAssociation(String sourceFullId, String targetFullId) {
+            this(sourceFullId, targetFullId, KIND_FK);
+        }
     }
+
+    /** Association kind: a foreign key. */
+    String KIND_FK = "fk";
+    /** Association kind: a view -> referenced-table reference. */
+    String KIND_VIEW = "view";
 
     /**
      * All entities in this container, in a deterministic order. The order is

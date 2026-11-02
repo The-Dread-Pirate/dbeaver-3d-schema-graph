@@ -31,9 +31,23 @@ public final class GraphModel {
                        int inCount, int outCount, int unresolvedCount) {
     }
 
-    /** A foreign-key relationship, node index to node index. */
-    public record Edge(int source, int target, int weight) {
+    /**
+     * A relationship between two nodes, by node index. {@code kind}
+     * distinguishes the relationship type: {@link #KIND_FK} for a foreign key,
+     * {@link #KIND_VIEW} for a view referencing a table in its definition.
+     */
+    public record Edge(int source, int target, int weight, String kind) {
+
+        /** Convenience for a foreign-key edge (the default kind). */
+        public Edge(int source, int target, int weight) {
+            this(source, target, weight, KIND_FK);
+        }
     }
+
+    /** Edge kind: a foreign-key relationship. */
+    public static final String KIND_FK = "fk";
+    /** Edge kind: a view -> referenced-table relationship. */
+    public static final String KIND_VIEW = "view";
 
     private final List<Node> nodes = new ArrayList<>();
     private final List<Edge> edges = new ArrayList<>();
@@ -84,6 +98,7 @@ public final class GraphModel {
             sb.append("{\"source\":").append(e.source())
               .append(",\"target\":").append(e.target())
               .append(",\"weight\":").append(e.weight())
+              .append(",\"kind\":").append(Json.quote(e.kind()))
               .append('}');
         }
         sb.append("]}");
