@@ -2,7 +2,7 @@
 <site>
    <feature
          id="org.jkiss.dbeaver.ext.graph3d.feature"
-         version="0.1.5.qualifier">
+         version="0.1.6.qualifier">
       <category name="org.jkiss.dbeaver.ext.graph3d"/>
    </feature>
    <category-def

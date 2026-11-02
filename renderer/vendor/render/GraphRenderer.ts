@@ -232,6 +232,11 @@ export class GraphRenderer {
 	 *  the whole graph on every one, the handlers just raise this flag and the
 	 *  ticker runs a single reproject() per rendered frame. */
 	private cameraDirty = false;
+	/** True once the user has moved the camera themselves (orbit/strafe/fly)
+	 *  since the last explicit fit. The host reads this to STOP auto-framing on
+	 *  layout settle, so flying inside the cluster is not snapped back out.
+	 *  Cleared by fitAll()/resetView(), which are intentional reframes. */
+	private cameraTouched = false;
 	private hoveredId: number | null = null;
 	/** Neighbors of the hovered node (undirected), for hover emphasis. */
 	private hoverNeighbors = new Set<number>();
@@ -320,6 +325,7 @@ export class GraphRenderer {
 				event.stopImmediatePropagation();
 				this.camera.fly(-event.deltaY * 1.5);
 				this.cameraDirty = true;
+				this.cameraTouched = true;
 			},
 			{ capture: true, passive: false }
 		);
@@ -512,9 +518,24 @@ export class GraphRenderer {
 		this.camera.tz = cz;
 	}
 
-	/** Fit every visible node into the viewport. */
+	/** True once the user has orbited/strafed/flown the camera since the last
+	 *  explicit fit. The host uses this to skip auto-framing on layout settle
+	 *  so a self-positioned view (e.g. flown inside the cluster) is preserved. */
+	get isCameraTouched(): boolean {
+		return this.cameraTouched;
+	}
+
+	/** Explicitly re-frame the whole graph and forget any manual camera move,
+	 *  so subsequent auto-fits resume until the user moves the camera again. */
+	resetView(): void {
+		this.fitAll();
+	}
+
+	/** Fit every visible node into the viewport. An explicit fit clears the
+	 *  "user moved the camera" flag — framing is itself an intentional view. */
 	fitAll(): void {
 		if (!this.positions || !this.radii) return;
+		this.cameraTouched = false;
 		if (this.camera.enabled && this.positions3) {
 			// 3D: fly the camera back to где всё облако в кадре — fitting the
 			// 2D projection would chase coordinates that move with the camera.
@@ -595,6 +616,18 @@ export class GraphRenderer {
 		this.applyHoverSize();
 		this.rebuildLabelPriority();
 		this.cullDirty = true;
+	}
+
+	/** Apply per-node color + glow without changing node sizes — the host's
+	 *  schema coloring (e.g. by FK connectivity). `tints` are 0xRRGGBB ints
+	 *  (-1 = fall back to the theme color); `glow` scales per-node brightness.
+	 *  Keeps the renderer's own degree-based radii. */
+	applyNodeColors(tints: Int32Array, glow: Float32Array): void {
+		if (tints.length !== this.sprites.length) return;
+		this.encodedTints = tints;
+		this.encodedGlow = glow;
+		this.applyNodeTints();
+		this.applyNodeAlpha();
 	}
 
 	setDimMask(mask: Uint8Array | null): void {
@@ -1393,6 +1426,7 @@ export class GraphRenderer {
 				// screen center, so flight always converges into the middle.
 				this.camera.strafe(-dx, -dy);
 				this.cameraDirty = true; // reprojected once in renderFrame
+				this.cameraTouched = true;
 			} else {
 				this.world.position.x += dx;
 				this.world.position.y += dy;
@@ -1412,6 +1446,7 @@ export class GraphRenderer {
 			// into one reproject() driven by the ticker instead of doing the
 			// full projection + edge/alpha/hull rebuild on every event.
 			this.cameraDirty = true;
+			this.cameraTouched = true;
 			return;
 		}
 		if (this.lassoPoints) {

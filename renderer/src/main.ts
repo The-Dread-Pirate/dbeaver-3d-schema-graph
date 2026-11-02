@@ -22,6 +22,7 @@ installObsidianDomShim();
 import { GraphRenderer, type RendererCallbacks } from "@agv/render/GraphRenderer";
 import type { GraphModel, GraphNode } from "@agv/data/GraphStore";
 import { startForceLayout, type LayoutHandle } from "./layout";
+import { encodeByConnectivity } from "./encoding";
 
 /** Shape pushed from Java (GraphModel.toJson). pathToId is built here. */
 interface WireModel {
@@ -87,7 +88,9 @@ class Graph3DHost {
       if (!this.renderer) return;
       try {
         this.renderer.resize();
-        if (this.model) this.renderer.fitAll();
+        // Keep the canvas sized to the pane, but don't re-frame if the user has
+        // positioned the camera themselves — only auto-fit an untouched view.
+        if (this.model && !this.renderer.isCameraTouched) this.renderer.fitAll();
       } catch {
         /* resize is best-effort */
       }
@@ -112,6 +115,11 @@ class Graph3DHost {
     if (!this.renderer) return;
     try {
       this.renderer.setModel(model);
+      // Color table orbs by FK connectivity (cool = leaf, hot = hub) and make
+      // the busiest tables glow brighter, so the schema's structure reads at a
+      // glance instead of every node being one flat color.
+      const { tints, glow } = encodeByConnectivity(model.nodes);
+      this.renderer.applyNodeColors(tints, glow);
     } catch (e) {
       showFatal("renderer.setModel failed: " + describeError(e));
       return;
@@ -136,7 +144,13 @@ class Graph3DHost {
       },
       () => {
         try {
-          this.renderer?.fitAll();
+          // Re-frame when the layout settles — but ONLY if the user hasn't
+          // taken the camera somewhere themselves. Otherwise flying inside the
+          // cluster would be yanked back out to frame-all the moment the
+          // physics cools. The initial first-frame fit above still runs.
+          if (this.renderer && !this.renderer.isCameraTouched) {
+            this.renderer.fitAll();
+          }
         } catch (e) {
           showFatal("fitAll failed: " + describeError(e));
         }
