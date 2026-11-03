@@ -53,11 +53,7 @@ declare module "d3-force-3d" {
 		radius(r: number): ReturnType<typeof forceCollide>;
 		strength(s: number): ReturnType<typeof forceCollide>;
 	};
-	/** Positional forces accept a constant target or a per-node accessor
-	 *  (node, index) => target, exactly like d3-force. The accessor form is
-	 *  what drives schema clustering (each node pulled to its schema center). */
-	type Accessor = (d: SimulationNodeDatum3D, i: number) => number;
-	export function forceX(x?: number | Accessor): { strength(s: number): ReturnType<typeof forceX> };
-	export function forceY(y?: number | Accessor): { strength(s: number): ReturnType<typeof forceY> };
-	export function forceZ(z?: number | Accessor): { strength(s: number): ReturnType<typeof forceZ> };
+	export function forceX(x?: number): { strength(s: number): ReturnType<typeof forceX> };
+	export function forceY(y?: number): { strength(s: number): ReturnType<typeof forceY> };
+	export function forceZ(z?: number): { strength(s: number): ReturnType<typeof forceZ> };
 }
