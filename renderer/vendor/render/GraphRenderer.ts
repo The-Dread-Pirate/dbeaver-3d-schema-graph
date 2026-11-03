@@ -1581,6 +1581,9 @@ export class GraphRenderer {
 			this.applyNodeTints();
 			this.applyNodeAlpha();
 			this.applyHoverSize();
+			// Hover-only labels depend on the hovered set, so a hover change must
+			// re-run cullAndLabel — otherwise the hovered node's name never shows.
+			this.cullDirty = true;
 		}
 		this.callbacks.onNodeHover(nodeId, event.clientX, event.clientY);
 	};

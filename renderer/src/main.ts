@@ -52,6 +52,10 @@ class Graph3DHost {
   private renderer: GraphRenderer | null = null;
   private layout: LayoutHandle | null = null;
   private model: GraphModel | null = null;
+  /** True once the view has been framed for the current model. Gates the
+   *  ResizeObserver so it auto-fits only on the first real size, not on every
+   *  later pane resize. Reset when a new model is loaded. */
+  private didInitialFit = false;
   private readonly graphHost: HTMLElement;
   private readonly detailsHost: HTMLElement;
 
@@ -91,9 +95,15 @@ class Graph3DHost {
       if (!this.renderer) return;
       try {
         this.renderer.resize();
-        // Keep the canvas sized to the pane, but don't re-frame if the user has
-        // positioned the camera themselves — only auto-fit an untouched view.
-        if (this.model && !this.renderer.isCameraTouched) this.renderer.fitAll();
+        // Auto-fit ONLY on the first transition from a zero-size pane to a real
+        // size (the original black-canvas fix). After that, a pane resize — the
+        // details panel appearing, the window changing — must NOT re-frame, or
+        // it fights the user's own camera position and snaps the view back.
+        const sized = this.graphHost.clientWidth > 0 && this.graphHost.clientHeight > 0;
+        if (this.model && sized && !this.didInitialFit) {
+          this.didInitialFit = true;
+          this.renderer.fitAll();
+        }
       } catch {
         /* resize is best-effort */
       }
@@ -114,6 +124,7 @@ class Graph3DHost {
     for (const n of wire.nodes) pathToId.set(n.path, n.id);
     const model: GraphModel = { nodes: wire.nodes, edges: wire.edges, pathToId };
     this.model = model;
+    this.didInitialFit = false; // a new model gets one fresh auto-fit
 
     if (!this.renderer) return;
     try {
@@ -139,6 +150,7 @@ class Graph3DHost {
           if (!framed && this.renderer) {
             this.renderer.fitAll();
             framed = true;
+            this.didInitialFit = true; // observer need not fit again
           }
         } catch (e) {
           this.layout?.stop();
