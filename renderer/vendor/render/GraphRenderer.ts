@@ -1514,9 +1514,11 @@ export class GraphRenderer {
 				return;
 			}
 			this.orbitMoved = true;
-			// Orbit around the scene center, not the camera's own axis.
+			// Orbit around the scene center, not the camera's own axis. Yaw is
+			// negated so the graph FOLLOWS the cursor: dragging right spins the
+			// scene to the right rather than the opposite way.
 			this.camera.orbit(
-				(event.clientX - this.orbitLastX) * 0.005,
+				-(event.clientX - this.orbitLastX) * 0.005,
 				(event.clientY - this.orbitLastY) * 0.005
 			);
 			this.orbitLastX = event.clientX;
