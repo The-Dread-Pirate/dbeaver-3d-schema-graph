@@ -187,8 +187,8 @@ class GraphBuilderTest {
 
         String expected =
             "{\"nodes\":["
-            + "{\"id\":0,\"path\":\"A\",\"name\":\"A\",\"inCount\":0,\"outCount\":1,\"unresolvedCount\":0},"
-            + "{\"id\":1,\"path\":\"B\",\"name\":\"B\",\"inCount\":1,\"outCount\":0,\"unresolvedCount\":0}"
+            + "{\"id\":0,\"path\":\"A\",\"name\":\"A\",\"schema\":\"\",\"inCount\":0,\"outCount\":1,\"unresolvedCount\":0},"
+            + "{\"id\":1,\"path\":\"B\",\"name\":\"B\",\"schema\":\"\",\"inCount\":1,\"outCount\":0,\"unresolvedCount\":0}"
             + "],\"edges\":["
             + "{\"source\":0,\"target\":1,\"weight\":1,\"kind\":\"fk\"}"
             + "]}";
@@ -212,6 +212,19 @@ class GraphBuilderTest {
         // The view's reference counts toward its out-degree like any edge.
         assertEquals(1, node(m, 0).outCount());
         assertEquals(1, node(m, 1).inCount());
+    }
+
+    @Test
+    @DisplayName("schema name flows from source entity through to the node and JSON")
+    void schemaCarried() {
+        GraphModel m = GraphBuilder.build(FakeGraphSource.create()
+            .entityInSchema("db.sales.orders", "orders", "sales")
+            .entityInSchema("db.hr.employees", "employees", "hr"));
+
+        assertEquals("sales", node(m, 0).schema());
+        assertEquals("hr", node(m, 1).schema());
+        assertTrue(m.toJson().contains("\"schema\":\"sales\""),
+            "schema should appear in the serialized node JSON");
     }
 
     @Test

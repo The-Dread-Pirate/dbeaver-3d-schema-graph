@@ -24,9 +24,13 @@ import type { GraphModel, GraphNode } from "@agv/data/GraphStore";
 import { startForceLayout, type LayoutHandle } from "./layout";
 import { encodeByConnectivity } from "./encoding";
 
+/** A node as the DBeaver host emits it: the renderer's GraphNode fields plus
+ *  the containing schema name (added in 0.2 for database-scope graphs). */
+type DbGraphNode = GraphNode & { schema?: string };
+
 /** Shape pushed from Java (GraphModel.toJson). pathToId is built here. */
 interface WireModel {
-  nodes: GraphNode[];
+  nodes: DbGraphNode[];
   edges: { source: number; target: number; weight: number; kind?: string }[];
 }
 
@@ -52,6 +56,9 @@ class Graph3DHost {
   private renderer: GraphRenderer | null = null;
   private layout: LayoutHandle | null = null;
   private model: GraphModel | null = null;
+  /** Schema-bearing nodes as emitted by the host (same order/ids as the
+   *  renderer model), kept so the details pane can show each object's schema. */
+  private dbNodes: DbGraphNode[] = [];
   /** True once the view has been framed for the current model. Gates the
    *  ResizeObserver so it auto-fits only on the first real size, not on every
    *  later pane resize. Reset when a new model is loaded. */
@@ -124,6 +131,7 @@ class Graph3DHost {
     for (const n of wire.nodes) pathToId.set(n.path, n.id);
     const model: GraphModel = { nodes: wire.nodes, edges: wire.edges, pathToId };
     this.model = model;
+    this.dbNodes = wire.nodes;
     this.didInitialFit = false; // a new model gets one fresh auto-fit
 
     if (!this.renderer) return;
@@ -222,14 +230,20 @@ class Graph3DHost {
     const seenIn = new Set<number>();
     const model = this.model;
     if (!model) return { references, referencedBy };
-    const nameOf = (id: number) => model.nodes[id]?.name ?? `#${id}`;
+    // Qualify each connected table with its schema so cross-schema references
+    // are obvious: "schema.table" when the schema is known, else just the name.
+    const labelOf = (id: number) => {
+      const name = model.nodes[id]?.name ?? `#${id}`;
+      const schema = this.dbNodes[id]?.schema;
+      return schema ? `${schema}.${name}` : name;
+    };
     for (const e of model.edges) {
       if (e.source === nodeId && e.target !== nodeId && !seenOut.has(e.target)) {
         seenOut.add(e.target);
-        references.push(nameOf(e.target));
+        references.push(labelOf(e.target));
       } else if (e.target === nodeId && e.source !== nodeId && !seenIn.has(e.source)) {
         seenIn.add(e.source);
-        referencedBy.push(nameOf(e.source));
+        referencedBy.push(labelOf(e.source));
       }
     }
     references.sort((a, b) => a.localeCompare(b));
@@ -246,6 +260,16 @@ class Graph3DHost {
     meta.style.opacity = "0.7";
     meta.style.fontSize = "12px";
     meta.textContent = `${details?.type ?? "TABLE"} · ${node.outCount} FK out · ${node.inCount} FK in`;
+
+    // Which schema this object lives in — the key signal for verifying
+    // cross-schema references at database scope.
+    const schema = this.dbNodes[nodeId]?.schema;
+    if (schema) {
+      const schemaEl = this.detailsHost.createDiv();
+      schemaEl.style.opacity = "0.7";
+      schemaEl.style.fontSize = "12px";
+      schemaEl.textContent = `Schema: ${schema}`;
+    }
 
     if (details && details.attributes.length > 0) {
       const h = this.detailsHost.createEl("h4", { text: "Columns" });

@@ -38,6 +38,13 @@ final class FakeGraphSource implements GraphSource {
         return this;
     }
 
+    /** Add an entity with an explicit containing-schema name. */
+    FakeGraphSource entityInSchema(String fullId, String name, String schema) {
+        entities.add(new SourceEntity(fullId, name, schema));
+        assoc.computeIfAbsent(fullId, k -> new ArrayList<>());
+        return this;
+    }
+
     /** Add a foreign key sourceFullId -> targetFullId. Source need not exist yet. */
     FakeGraphSource fk(String sourceFullId, String targetFullId) {
         assoc.computeIfAbsent(sourceFullId, k -> new ArrayList<>())

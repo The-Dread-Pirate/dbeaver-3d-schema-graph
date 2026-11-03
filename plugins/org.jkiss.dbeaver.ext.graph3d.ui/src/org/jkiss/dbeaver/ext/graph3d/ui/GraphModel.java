@@ -26,9 +26,17 @@ import java.util.List;
  */
 public final class GraphModel {
 
-    /** A table/entity node. */
-    public record Node(int id, String path, String name,
+    /** A table/entity node. {@code schema} is the name of the containing
+     *  schema/catalog (empty when unknown or not applicable), surfaced so the
+     *  UI can show which schema an object and its references live in. */
+    public record Node(int id, String path, String name, String schema,
                        int inCount, int outCount, int unresolvedCount) {
+
+        /** Backward-compatible constructor defaulting schema to empty. */
+        public Node(int id, String path, String name,
+                    int inCount, int outCount, int unresolvedCount) {
+            this(id, path, name, "", inCount, outCount, unresolvedCount);
+        }
     }
 
     /**
@@ -84,6 +92,7 @@ public final class GraphModel {
             sb.append("{\"id\":").append(n.id())
               .append(",\"path\":").append(Json.quote(n.path()))
               .append(",\"name\":").append(Json.quote(n.name()))
+              .append(",\"schema\":").append(Json.quote(n.schema()))
               .append(",\"inCount\":").append(n.inCount())
               .append(",\"outCount\":").append(n.outCount())
               .append(",\"unresolvedCount\":").append(n.unresolvedCount())

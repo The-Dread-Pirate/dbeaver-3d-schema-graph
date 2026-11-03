@@ -122,7 +122,8 @@ public final class SchemaMetadataExtractor {
                     break;
                 }
                 String sourceFullId = DBUtils.getObjectFullId(entity);
-                entities.add(new GraphSource.SourceEntity(sourceFullId, entity.getName()));
+                String schemaName = schemaNameOf(entity);
+                entities.add(new GraphSource.SourceEntity(sourceFullId, entity.getName(), schemaName));
                 registerName(nameToFullId, entity.getName(), sourceFullId);
                 if (entity instanceof DBPQualifiedObject qualified) {
                     registerName(nameToFullId,
@@ -208,6 +209,22 @@ public final class SchemaMetadataExtractor {
             return;
         }
         nameToFullId.putIfAbsent(name.toLowerCase(Locale.ROOT), fullId);
+    }
+
+    /**
+     * Name of the schema/catalog that directly contains {@code entity} — its
+     * parent object's name. Empty when there is no parent (e.g. a top-level
+     * entity) or the name is unavailable. This is what the UI shows as "which
+     * schema this object lives in", and is reliable across drivers because it
+     * reads the real object hierarchy rather than parsing the full id string.
+     */
+    private static String schemaNameOf(DBSEntity entity) {
+        DBSObject parent = entity.getParentObject();
+        if (parent == null) {
+            return "";
+        }
+        String name = parent.getName();
+        return name != null ? name : "";
     }
 
     /** Mutable int holder for counting total entities seen across the recursion

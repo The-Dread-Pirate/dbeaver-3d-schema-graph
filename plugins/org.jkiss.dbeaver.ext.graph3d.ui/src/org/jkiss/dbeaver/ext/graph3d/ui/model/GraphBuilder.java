@@ -46,6 +46,7 @@ public final class GraphBuilder {
         Map<String, Integer> idByFullId = new HashMap<>(entities.size() * 2);
         String[] fullIds = new String[entities.size()];
         String[] names = new String[entities.size()];
+        String[] schemas = new String[entities.size()];
         int count = 0;
         for (GraphSource.SourceEntity e : entities) {
             if (idByFullId.containsKey(e.fullId())) {
@@ -55,6 +56,7 @@ public final class GraphBuilder {
             idByFullId.put(e.fullId(), id);
             fullIds[id] = e.fullId();
             names[id] = e.name();
+            schemas[id] = e.schema() != null ? e.schema() : "";
         }
 
         int[] inCount = new int[count];
@@ -88,7 +90,7 @@ public final class GraphBuilder {
         // Emit nodes in dense-id order with resolved degree counts.
         for (int id = 0; id < count; id++) {
             model.addNode(new GraphModel.Node(
-                id, fullIds[id], names[id],
+                id, fullIds[id], names[id], schemas[id],
                 inCount[id], outCount[id], unresolved[id]));
         }
 

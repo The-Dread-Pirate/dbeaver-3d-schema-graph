@@ -23,8 +23,14 @@ import java.util.List;
  */
 public interface GraphSource {
 
-    /** A table/entity: a stable full id plus a display name. */
-    record SourceEntity(String fullId, String name) {
+    /** A table/entity: a stable full id, a display name, and the name of its
+     *  containing schema/catalog ({@code ""} when unknown). */
+    record SourceEntity(String fullId, String name, String schema) {
+
+        /** Convenience for sources without schema info (schema defaults to ""). */
+        public SourceEntity(String fullId, String name) {
+            this(fullId, name, "");
+        }
     }
 
     /**
