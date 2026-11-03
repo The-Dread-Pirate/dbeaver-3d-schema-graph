@@ -207,10 +207,37 @@ class Graph3DHost {
         }
       }
     }
-    this.renderDetails(node, details);
+    this.renderDetails(nodeId, node, details);
   }
 
-  private renderDetails(node: GraphNode, details: NodeDetailsWire | null): void {
+  /** Names of tables connected to `nodeId`, split by relationship direction
+   *  and kind, computed from the in-memory graph edges. */
+  private connectedTables(nodeId: number): {
+    references: string[];      // this table -> others (FK out / view refs)
+    referencedBy: string[];    // others -> this table (FK in)
+  } {
+    const references: string[] = [];
+    const referencedBy: string[] = [];
+    const seenOut = new Set<number>();
+    const seenIn = new Set<number>();
+    const model = this.model;
+    if (!model) return { references, referencedBy };
+    const nameOf = (id: number) => model.nodes[id]?.name ?? `#${id}`;
+    for (const e of model.edges) {
+      if (e.source === nodeId && e.target !== nodeId && !seenOut.has(e.target)) {
+        seenOut.add(e.target);
+        references.push(nameOf(e.target));
+      } else if (e.target === nodeId && e.source !== nodeId && !seenIn.has(e.source)) {
+        seenIn.add(e.source);
+        referencedBy.push(nameOf(e.source));
+      }
+    }
+    references.sort((a, b) => a.localeCompare(b));
+    referencedBy.sort((a, b) => a.localeCompare(b));
+    return { references, referencedBy };
+  }
+
+  private renderDetails(nodeId: number, node: GraphNode, details: NodeDetailsWire | null): void {
     this.detailsHost.empty();
     const title = this.detailsHost.createEl("h3", { text: details?.name ?? node.name });
     title.style.margin = "0 0 .5rem";
@@ -246,11 +273,32 @@ class Graph3DHost {
       }
     }
 
+    // Connected tables — the names of the related objects that light up when
+    // you hover this one. Computed from the graph edges, so it works even when
+    // DBeaver returns no rich details.
+    const { references, referencedBy } = this.connectedTables(nodeId);
+    this.renderNameList("References", references);
+    this.renderNameList("Referenced by", referencedBy);
+
     const hint = this.detailsHost.createDiv();
     hint.style.marginTop = ".75rem";
     hint.style.opacity = "0.6";
     hint.style.fontSize = "11px";
     hint.textContent = "Double-click a node to open it in DBeaver.";
+  }
+
+  /** Render a titled list of connected-table names; no-op when the list is
+   *  empty so the pane stays clean for leaf tables. */
+  private renderNameList(title: string, names: string[]): void {
+    if (names.length === 0) return;
+    const h = this.detailsHost.createEl("h4", { text: `${title} (${names.length})` });
+    h.style.margin = ".75rem 0 .25rem";
+    const ul = this.detailsHost.createEl("ul");
+    ul.style.margin = "0";
+    ul.style.paddingLeft = "1.1rem";
+    for (const name of names) {
+      ul.createEl("li", { text: name });
+    }
   }
 
   private setStatus(text: string): void {

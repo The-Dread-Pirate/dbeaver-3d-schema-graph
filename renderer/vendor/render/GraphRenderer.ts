@@ -1203,19 +1203,16 @@ export class GraphRenderer {
 			return true;
 		};
 
-		// Hover-only mode: name ONLY the hovered node and its direct neighbors,
-		// hide everything else. This is the primary label mode for the DBeaver
-		// view — the graph stays uncluttered and hovering a table reveals its
-		// name plus the names of everything it connects to.
+		// Hover-only mode: name ONLY the hovered node itself. Its connected
+		// nodes are highlighted (tint/alpha/size via the hoverNeighbors set) but
+		// NOT named — the graph stays uncluttered, and the related tables' names
+		// are surfaced in the details pane on click instead.
 		if (this.labelsHoverOnly) {
-			if (this.hoveredId !== null && this.labelsVisible) {
-				const candidates = [this.hoveredId, ...this.hoverNeighbors];
-				for (const i of candidates) {
-					if (labeled.has(i) || !isOnScreen(i)) continue;
-					if (this.hiddenMask !== null && this.hiddenMask[i] === 1) continue;
-					if (this.depthScales !== null && this.depthScales[i] === 0) continue;
-					takeLabel(i);
-				}
+			if (this.hoveredId !== null && this.labelsVisible
+				&& isOnScreen(this.hoveredId)
+				&& !(this.hiddenMask !== null && this.hiddenMask[this.hoveredId] === 1)
+				&& !(this.depthScales !== null && this.depthScales[this.hoveredId] === 0)) {
+				takeLabel(this.hoveredId);
 			}
 			for (const [i, label] of this.labels) {
 				if (!labeled.has(i)) label.visible = false;
