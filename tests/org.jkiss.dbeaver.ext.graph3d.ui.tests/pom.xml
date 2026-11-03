@@ -20,7 +20,7 @@
 
     <groupId>org.jkiss.dbeaver.ext.graph3d</groupId>
     <artifactId>org.jkiss.dbeaver.ext.graph3d.ui.tests</artifactId>
-    <version>0.1.13-SNAPSHOT</version>
+    <version>0.2.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <properties>

@@ -28,11 +28,18 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Reads a DBeaver {@link DBSObjectContainer} (schema/catalog) through the
- * public model API and produces a {@link GraphModel}. The traversal mirrors
- * {@code org.jkiss.dbeaver.model.erd.ERDUtils.collectDatabaseTables}: cache the
- * container's structure, enumerate entities, resolve each entity's foreign-key
- * associations.
+ * Reads a DBeaver {@link DBSObjectContainer} (schema, catalog, or database)
+ * through the public model API and produces a {@link GraphModel}. The traversal
+ * caches each container's structure, enumerates entities, and resolves each
+ * entity's foreign-key associations.
+ *
+ * <p><b>Nested containers (0.2).</b> When the selected container holds other
+ * containers rather than entities (a database/catalog whose children are
+ * schemas), the read descends one or more levels to collect the tables of every
+ * schema. Because node identity and FK resolution are keyed on full ids across
+ * the whole collected set, a foreign key that crosses from one schema to another
+ * within the same database resolves to a drawn edge instead of being dropped as
+ * an external reference. A plain schema is read exactly as before.
  *
  * <p>This class is only the <em>adapter</em>: it flattens DBeaver's metadata
  * into the provider-agnostic {@link GraphSource} shape and hands it to the pure
@@ -84,11 +91,6 @@ public final class SchemaMetadataExtractor {
                                         int maxTables) throws DBException {
         int cap = maxTables > 0 ? maxTables : DEFAULT_MAX_TABLES;
 
-        container.cacheStructure(monitor,
-            DBSObjectContainer.STRUCT_ENTITIES
-                | DBSObjectContainer.STRUCT_ATTRIBUTES
-                | DBSObjectContainer.STRUCT_ASSOCIATIONS);
-
         List<GraphSource.SourceEntity> entities = new ArrayList<>();
         Map<String, List<GraphSource.SourceAssociation>> assocByFullId = new HashMap<>();
 
@@ -100,27 +102,25 @@ public final class SchemaMetadataExtractor {
         // reference in either form in the view SQL resolves.
         Map<String, String> nameToFullId = new LinkedHashMap<>();
 
-        int totalEntities = 0;
-        boolean truncated = false;
-        boolean cancelled = false;
+        // Collect entities from this container AND any nested entity containers
+        // (schemas within a database/catalog). A schema's children are already
+        // entities and the recursion stops immediately; a database's children
+        // are schemas, so we descend one level into each. Resolution below is
+        // keyed on full ids / names across the WHOLE collected set, so a foreign
+        // key that crosses from one schema to another in the same database now
+        // resolves to a drawn edge instead of being dropped as "external".
+        List<DBSEntity> collected = new ArrayList<>();
+        Counter totalCounter = new Counter();
+        boolean cancelled = collectEntities(monitor, container, cap, collected, totalCounter);
+        int totalEntities = totalCounter.value;
+        boolean truncated = totalEntities > collected.size();
 
-        Collection<? extends DBSObject> children = container.getChildren(monitor);
-        if (children != null) {
-            for (DBSObject child : children) {
-                if (!(child instanceof DBSEntity entity)) {
-                    continue;
-                }
-                totalEntities++;
-
-                if (entities.size() >= cap) {
-                    truncated = true;
-                    continue; // keep counting totalEntities, but read no more
-                }
+        if (!cancelled) {
+            for (DBSEntity entity : collected) {
                 if (monitor.isCanceled()) {
                     cancelled = true;
                     break;
                 }
-
                 String sourceFullId = DBUtils.getObjectFullId(entity);
                 entities.add(new GraphSource.SourceEntity(sourceFullId, entity.getName()));
                 registerName(nameToFullId, entity.getName(), sourceFullId);
@@ -208,5 +208,72 @@ public final class SchemaMetadataExtractor {
             return;
         }
         nameToFullId.putIfAbsent(name.toLowerCase(Locale.ROOT), fullId);
+    }
+
+    /** Mutable int holder for counting total entities seen across the recursion
+     *  (including those skipped past the cap), for truncation reporting. */
+    private static final class Counter {
+        int value;
+    }
+
+    /**
+     * Collect {@link DBSEntity} objects from {@code container}, descending one
+     * or more container levels so a database/catalog yields the tables of all
+     * its schemas. The traversal:
+     * <ul>
+     *   <li>caches the container's structure (entities + attributes +
+     *       associations) so the subsequent association reads are served from
+     *       cache, not per-entity round-trips;</li>
+     *   <li>adds each child that is a {@link DBSEntity} to {@code out}, up to
+     *       {@code cap} (every entity is still counted in {@code total} so the
+     *       caller can report truncation);</li>
+     *   <li>recurses into each child that is a {@link DBSObjectContainer} but
+     *       not itself an entity (a schema inside a database).</li>
+     * </ul>
+     * A plain schema stops at the first level exactly as before, so the
+     * single-schema behavior is unchanged.
+     *
+     * @return true if the read was cancelled via the monitor
+     */
+    private static boolean collectEntities(
+            DBRProgressMonitor monitor, DBSObjectContainer container, int cap,
+            List<DBSEntity> out, Counter total) throws DBException {
+        if (monitor.isCanceled()) {
+            return true;
+        }
+        container.cacheStructure(monitor,
+            DBSObjectContainer.STRUCT_ENTITIES
+                | DBSObjectContainer.STRUCT_ATTRIBUTES
+                | DBSObjectContainer.STRUCT_ASSOCIATIONS);
+
+        Collection<? extends DBSObject> children = container.getChildren(monitor);
+        if (children == null) {
+            return false;
+        }
+        for (DBSObject child : children) {
+            if (monitor.isCanceled()) {
+                return true;
+            }
+            if (child instanceof DBSEntity entity) {
+                total.value++;
+                if (out.size() < cap) {
+                    out.add(entity);
+                }
+            } else if (child instanceof DBSObjectContainer nested) {
+                // A schema inside a database/catalog: descend one more level —
+                // but once we've already hit the cap, stop the expensive
+                // cacheStructure/recursion into further schemas. The graph is
+                // truncated either way; there's no point reading more catalog
+                // metadata we won't draw (important on a large database).
+                if (out.size() >= cap) {
+                    total.value += cap + 1; // mark truncated; exact count not needed past cap
+                    break;
+                }
+                if (collectEntities(monitor, nested, cap, out, total)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

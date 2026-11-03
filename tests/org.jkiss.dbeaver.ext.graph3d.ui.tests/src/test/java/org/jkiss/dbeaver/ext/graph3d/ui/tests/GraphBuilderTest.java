@@ -215,6 +215,26 @@ class GraphBuilderTest {
     }
 
     @Test
+    @DisplayName("cross-schema FK resolves to an edge when both tables are present")
+    void crossSchemaForeignKeyResolves() {
+        // With database-level extraction, tables from two schemas are in the
+        // same entity set, so a FK from schemaA.orders to schemaB.customers now
+        // draws (previously it was dropped as an external/unresolved reference).
+        GraphModel m = GraphBuilder.build(FakeGraphSource.create()
+            .entity("db.schemaA.orders", "orders")
+            .entity("db.schemaB.customers", "customers")
+            .fk("db.schemaA.orders", "db.schemaB.customers"));
+
+        assertEquals(1, m.getEdges().size(), "cross-schema FK should draw once both ends are present");
+        GraphModel.Edge e = m.getEdges().get(0);
+        assertEquals(0, e.source());
+        assertEquals(1, e.target());
+        assertEquals(0, node(m, 0).unresolvedCount(), "resolved cross-schema FK is not unresolved");
+        assertEquals(1, node(m, 0).outCount());
+        assertEquals(1, node(m, 1).inCount());
+    }
+
+    @Test
     @DisplayName("fk and view edges coexist, each keeping its own kind")
     void mixedEdgeKinds() {
         GraphModel m = GraphBuilder.build(FakeGraphSource.create()
