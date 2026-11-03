@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: DBeaver 3D Schema Graph
 Bundle-SymbolicName: org.jkiss.dbeaver.ext.graph3d.ui;singleton:=true
-Bundle-Version: 0.2.1.qualifier
+Bundle-Version: 0.2.2.qualifier
 Bundle-Vendor: DBeaver 3D Schema Graph contributors
 Bundle-RequiredExecutionEnvironment: JavaSE-21
 Bundle-ActivationPolicy: lazy

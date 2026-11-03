@@ -7,6 +7,10 @@ package org.jkiss.dbeaver.ext.graph3d.ui;
 import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.jface.action.Action;
+import org.eclipse.jface.dialogs.IInputValidator;
+import org.eclipse.jface.dialogs.InputDialog;
+import org.eclipse.jface.window.Window;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.browser.Browser;
 import org.eclipse.swt.browser.BrowserFunction;
@@ -64,9 +68,13 @@ public class Graph3DView extends ViewPart {
      */
     private volatile DBPProject contextProject;
 
+    /** The last container loaded, so changing the table cap can re-read it. */
+    private volatile DBSObjectContainer lastContainer;
+
     @Override
     public void createPartControl(Composite parent) {
         browser = createBrowser(parent);
+        contributeToolbar();
 
         NavigationController navigation = new NavigationController(
             this::resolveObject,
@@ -156,14 +164,70 @@ public class Graph3DView extends ViewPart {
      * {@link GraphModel} and a status line on the UI thread. Binds the
      * container's project so node navigation can resolve ids.
      *
-     * <p>Safe for large schemas: the extract is capped
-     * ({@link SchemaMetadataExtractor#DEFAULT_MAX_TABLES}) and reports when it
-     * truncated, which the status bar surfaces.
+     * <p>Safe for large schemas and databases: the extract is capped at the
+     * user-configurable {@link Graph3DPreferences#getMaxTables()} limit and
+     * reports when it truncated, which the status bar surfaces.
      */
+    /**
+     * Add a view-toolbar action to set the table cap. Prompts for an integer,
+     * clamps + persists it via {@link Graph3DPreferences}, and re-reads the
+     * currently loaded container so the new cap takes effect immediately.
+     */
+    private void contributeToolbar() {
+        Action setCap = new Action("Set table limit…") {
+            @Override
+            public void run() {
+                promptForTableCap();
+            }
+        };
+        setCap.setToolTipText("Maximum number of tables to read into the graph");
+        getViewSite().getActionBars().getToolBarManager().add(setCap);
+    }
+
+    private void promptForTableCap() {
+        int current = Graph3DPreferences.getMaxTables();
+        IInputValidator validator = input -> {
+            final int min = Graph3DPreferences.MIN_MAX_TABLES;
+            final int max = Graph3DPreferences.MAX_MAX_TABLES;
+            if (input == null || input.isBlank()) {
+                return "Enter a number";
+            }
+            final int n;
+            try {
+                n = Integer.parseInt(input.trim());
+            } catch (NumberFormatException e) {
+                return "Must be a whole number";
+            }
+            if (n < min || n > max) {
+                return "Must be between " + min + " and " + max;
+            }
+            return null;
+        };
+        InputDialog dialog = new InputDialog(
+            browser.getShell(),
+            "3D Graph — table limit",
+            "Maximum tables to read (" + Graph3DPreferences.MIN_MAX_TABLES
+                + "–" + Graph3DPreferences.MAX_MAX_TABLES
+                + "). Larger values read more catalog metadata and render more nodes.",
+            String.valueOf(current),
+            validator);
+        if (dialog.open() != Window.OK) {
+            return;
+        }
+        int next = Integer.parseInt(dialog.getValue().trim());
+        Graph3DPreferences.setMaxTables(next);
+        // Re-read the current graph with the new cap, if one is loaded.
+        DBSObjectContainer container = this.lastContainer;
+        if (container != null) {
+            loadContainer(container);
+        }
+    }
+
     public void loadContainer(DBSObjectContainer container) {
         if (container == null) {
             return;
         }
+        this.lastContainer = container;
         // Resolve the owning project for navigate round-trips.
         DBPProject project = DBUtils.getObjectOwnerProject(container);
         if (project != null) {
@@ -175,17 +239,17 @@ public class Graph3DView extends ViewPart {
             @Override
             protected IStatus run(DBRProgressMonitor monitor) {
                 try {
+                    int maxTables = Graph3DPreferences.getMaxTables();
                     SchemaMetadataExtractor.ExtractResult result =
-                        SchemaMetadataExtractor.extract(monitor, container,
-                            SchemaMetadataExtractor.DEFAULT_MAX_TABLES);
+                        SchemaMetadataExtractor.extract(monitor, container, maxTables);
                     if (result.cancelled()) {
                         uiStatus("Cancelled.");
                         return Status.CANCEL_STATUS;
                     }
                     final String status = result.truncated()
                         ? String.format(
-                            "Showing first %d of %d tables (capped for safety) · %d relationships",
-                            result.includedTables(), result.totalTables(),
+                            "Showing first %d of %d tables (limit %d — raise via the toolbar) · %d relationships",
+                            result.includedTables(), result.totalTables(), maxTables,
                             result.model().getEdges().size())
                         : String.format("%d tables · %d relationships",
                             result.includedTables(), result.model().getEdges().size());
