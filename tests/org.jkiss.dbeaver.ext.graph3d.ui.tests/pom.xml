@@ -20,7 +20,7 @@
 
     <groupId>org.jkiss.dbeaver.ext.graph3d</groupId>
     <artifactId>org.jkiss.dbeaver.ext.graph3d.ui.tests</artifactId>
-    <version>0.2.4-SNAPSHOT</version>
+    <version>0.2.5-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -77,6 +77,7 @@
                         <include>org/jkiss/dbeaver/ext/graph3d/ui/GraphModel.java</include>
                         <include>org/jkiss/dbeaver/ext/graph3d/ui/model/GraphSource.java</include>
                         <include>org/jkiss/dbeaver/ext/graph3d/ui/model/GraphBuilder.java</include>
+                        <include>org/jkiss/dbeaver/ext/graph3d/ui/model/OverviewBuilder.java</include>
                         <include>org/jkiss/dbeaver/ext/graph3d/ui/model/ViewReferenceFinder.java</include>
                         <include>org/jkiss/dbeaver/ext/graph3d/ui/model/Json.java</include>
                         <include>org/jkiss/dbeaver/ext/graph3d/ui/model/NodeDetails.java</include>

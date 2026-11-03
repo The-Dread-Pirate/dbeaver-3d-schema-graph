@@ -26,9 +26,21 @@
     #graph3d-canvas-host { flex: 1 1 auto; position: relative; min-width: 0; }
     #graph3d-canvas-host canvas { display: block; }
     #graph3d-side {
-      flex: 0 0 280px; border-left: 1px solid var(--background-modifier-border);
+      /* Fit the widest content (e.g. a long schema.table reference) instead of
+         a fixed width that forces horizontal scrolling, but clamp between a
+         sensible min and a max so the pane never swallows the whole canvas. */
+      flex: 0 0 auto;
+      width: max-content;
+      min-width: 240px;
+      max-width: 48vw;
+      border-left: 1px solid var(--background-modifier-border);
       padding: .75rem; overflow: auto;
       background: var(--background-primary);
+    }
+    /* Keep each list item on one line so names stay readable; the pane widens
+       to fit rather than wrapping mid-identifier. */
+    #graph3d-details ul li {
+      white-space: nowrap;
     }
     #graph3d-details:empty::before {
       content: "Select a node to see its columns and keys.";

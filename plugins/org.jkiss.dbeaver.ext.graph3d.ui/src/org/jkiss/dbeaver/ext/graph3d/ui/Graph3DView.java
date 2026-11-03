@@ -20,6 +20,7 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.part.ViewPart;
 import org.jkiss.dbeaver.ext.graph3d.ui.model.NavigationController;
+import org.jkiss.dbeaver.ext.graph3d.ui.model.OverviewBuilder;
 import org.jkiss.dbeaver.model.DBUtils;
 import org.jkiss.dbeaver.model.app.DBPProject;
 import org.jkiss.dbeaver.model.runtime.AbstractJob;
@@ -85,6 +86,12 @@ public class Graph3DView extends ViewPart {
             @Override
             public Object function(Object[] arguments) {
                 String fullId = firstString(arguments);
+                // Overview mode: a schema super-node expands into that schema's
+                // table graph instead of navigating to a database object.
+                if (fullId != null && fullId.startsWith(OverviewBuilder.SCHEMA_PATH_PREFIX)) {
+                    expandSchema(fullId.substring(OverviewBuilder.SCHEMA_PATH_PREFIX.length()));
+                    return "EXPANDED";
+                }
                 NavigationController.Outcome outcome = navigation.navigate(fullId);
                 if (!outcome.opened()) {
                     System.out.println("[graph3d] navigate: " + outcome.message());
@@ -223,7 +230,66 @@ public class Graph3DView extends ViewPart {
         }
     }
 
+    /** Open the full table-level graph for a schema/catalog/database. */
     public void loadContainer(DBSObjectContainer container) {
+        runLoad(container, false);
+    }
+
+    /** Open the schema-overview (drill-down) graph: one super-node per schema,
+     *  edges between schemas weighted by crossing relationships. Clicking a
+     *  schema node expands it into that schema's full table graph. */
+    public void loadOverview(DBSObjectContainer container) {
+        runLoad(container, true);
+    }
+
+    /**
+     * Expand one schema from the overview back into its full table graph. Finds
+     * the child container of the last-loaded container whose name matches, on a
+     * background job (metadata lookup is off the UI thread), then loads it.
+     */
+    private void expandSchema(String schemaName) {
+        DBSObjectContainer parent = this.lastContainer;
+        if (parent == null || schemaName == null) {
+            return;
+        }
+        setStatus("Expanding schema " + schemaName + "…");
+        AbstractJob job = new AbstractJob("Expand schema") {
+            @Override
+            protected IStatus run(DBRProgressMonitor monitor) {
+                try {
+                    DBSObjectContainer match = findChildContainer(monitor, parent, schemaName);
+                    if (match == null) {
+                        uiStatus("Could not find schema " + schemaName + " to expand.");
+                        return Status.CANCEL_STATUS;
+                    }
+                    // loadContainer schedules its own job; invoke on the UI thread.
+                    Display display = browser != null && !browser.isDisposed()
+                        ? browser.getDisplay() : Display.getDefault();
+                    display.asyncExec(() -> loadContainer(match));
+                    return Status.OK_STATUS;
+                } catch (Exception e) {
+                    uiStatus("Failed to expand schema: " + e.getMessage());
+                    return Status.CANCEL_STATUS;
+                }
+            }
+        };
+        job.schedule();
+    }
+
+    /** Find a direct child {@link DBSObjectContainer} of {@code parent} whose
+     *  name equals {@code name}; null if none. */
+    private static DBSObjectContainer findChildContainer(
+            DBRProgressMonitor monitor, DBSObjectContainer parent, String name) throws Exception {
+        for (DBSObject child : parent.getChildren(monitor)) {
+            if (child instanceof DBSObjectContainer container
+                && name.equals(child.getName())) {
+                return container;
+            }
+        }
+        return null;
+    }
+
+    private void runLoad(DBSObjectContainer container, boolean overview) {
         if (container == null) {
             return;
         }
@@ -233,7 +299,7 @@ public class Graph3DView extends ViewPart {
         if (project != null) {
             this.contextProject = project;
         }
-        setStatus("Reading schema…");
+        setStatus(overview ? "Reading database overview…" : "Reading schema…");
 
         AbstractJob job = new AbstractJob("Build 3D schema graph") {
             @Override
@@ -246,14 +312,24 @@ public class Graph3DView extends ViewPart {
                         uiStatus("Cancelled.");
                         return Status.CANCEL_STATUS;
                     }
-                    final String status = result.truncated()
-                        ? String.format(
-                            "Showing first %d of %d tables (limit %d — raise via the toolbar) · %d relationships",
-                            result.includedTables(), result.totalTables(), maxTables,
-                            result.model().getEdges().size())
-                        : String.format("%d tables · %d relationships",
-                            result.includedTables(), result.model().getEdges().size());
-                    pushModel(result.model(), status);
+                    if (overview) {
+                        GraphModel ov = OverviewBuilder.build(result.model());
+                        String status = String.format(
+                            "Overview: %d schemas · %d cross-schema links%s",
+                            ov.getNodes().size(), ov.getEdges().size(),
+                            result.truncated()
+                                ? " (from first " + result.includedTables() + " tables)" : "");
+                        pushModel(ov, status);
+                    } else {
+                        String status = result.truncated()
+                            ? String.format(
+                                "Showing first %d of %d tables (limit %d — raise via the toolbar) · %d relationships",
+                                result.includedTables(), result.totalTables(), maxTables,
+                                result.model().getEdges().size())
+                            : String.format("%d tables · %d relationships",
+                                result.includedTables(), result.model().getEdges().size());
+                        pushModel(result.model(), status);
+                    }
                     return Status.OK_STATUS;
                 } catch (Exception e) {
                     uiStatus("Failed to read schema: " + e.getMessage());

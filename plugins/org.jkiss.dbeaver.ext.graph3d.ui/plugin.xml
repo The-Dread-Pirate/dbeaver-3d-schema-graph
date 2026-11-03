@@ -22,10 +22,21 @@
             categoryId="org.eclipse.ui.category.views"/>
     </extension>
 
+    <!-- Command that opens the selected container as a schema overview. -->
+    <extension point="org.eclipse.ui.commands">
+        <command
+            id="org.jkiss.dbeaver.ext.graph3d.ui.openOverview"
+            name="Open in 3D Database Overview"
+            categoryId="org.eclipse.ui.category.views"/>
+    </extension>
+
     <extension point="org.eclipse.ui.handlers">
         <handler
             commandId="org.jkiss.dbeaver.ext.graph3d.ui.openGraph"
             class="org.jkiss.dbeaver.ext.graph3d.ui.OpenGraph3DHandler"/>
+        <handler
+            commandId="org.jkiss.dbeaver.ext.graph3d.ui.openOverview"
+            class="org.jkiss.dbeaver.ext.graph3d.ui.OpenOverview3DHandler"/>
     </extension>
 
     <!-- Context-menu entry on Database Navigator nodes. The handler itself
@@ -38,6 +49,19 @@
             <command
                 commandId="org.jkiss.dbeaver.ext.graph3d.ui.openGraph"
                 label="Open in 3D Schema Graph"
+                style="push">
+                <visibleWhen checkEnabled="false">
+                    <with variable="selection">
+                        <count value="1"/>
+                        <iterate>
+                            <adapt type="org.jkiss.dbeaver.model.struct.DBSObject"/>
+                        </iterate>
+                    </with>
+                </visibleWhen>
+            </command>
+            <command
+                commandId="org.jkiss.dbeaver.ext.graph3d.ui.openOverview"
+                label="Open in 3D Database Overview"
                 style="push">
                 <visibleWhen checkEnabled="false">
                     <with variable="selection">
