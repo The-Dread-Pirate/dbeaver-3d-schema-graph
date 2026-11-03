@@ -147,10 +147,15 @@ class Graph3DHost {
       (positions3) => {
         try {
           this.renderer?.updatePositions(positions3);
+          // Frame the graph on the first layout frame — unless the user already
+          // grabbed the camera, in which case respect their view. Mark framed
+          // either way so this one-shot never re-fires on later layout ticks.
           if (!framed && this.renderer) {
-            this.renderer.fitAll();
             framed = true;
             this.didInitialFit = true; // observer need not fit again
+            if (!this.renderer.isCameraTouched) {
+              this.renderer.fitAll();
+            }
           }
         } catch (e) {
           this.layout?.stop();

@@ -558,7 +558,6 @@ export class GraphRenderer {
 	 *  "user moved the camera" flag — framing is itself an intentional view. */
 	fitAll(): void {
 		if (!this.positions || !this.radii) return;
-		this.debugHud("fitAll() ran (orbiting=" + this.orbiting + " touched=" + this.cameraTouched + ")");
 		this.cameraTouched = false;
 		if (this.camera.enabled && this.positions3) {
 			// 3D: fly the camera back to где всё облако в кадре — fitting the
@@ -1518,7 +1517,6 @@ export class GraphRenderer {
 				return;
 			}
 			this.orbitMoved = true;
-			this.debugHud("ORBITING yaw=" + this.camera.yaw.toFixed(2) + " pitch=" + this.camera.pitch.toFixed(2));
 			// Orbit around the scene center, not the camera's own axis.
 			this.camera.orbit(
 				(event.clientX - this.orbitLastX) * 0.005,
@@ -1719,23 +1717,18 @@ export class GraphRenderer {
 	/** Begin an orbit drag; a no-op in flat mode, where there is nothing to
 	 *  orbit around. */
 	private startOrbit(event: PointerEvent): void {
-		this.debugHud("down: startOrbit called, camEnabled=" + this.camera.enabled);
 		if (!this.camera.enabled) return;
 		this.orbiting = true;
 		this.orbitMoved = false;
 		this.orbitLastX = event.clientX;
 		this.orbitLastY = event.clientY;
+		// Pressing to orbit is an immediate intent to control the camera. Mark
+		// it touched NOW (not only once rotation crosses the threshold) so a
+		// layout-settle fit that fires mid-drag is suppressed and can't snap the
+		// view back to frame-all while you're rotating. The first-frame fit on a
+		// fresh model is unconditional, so initial framing still happens.
+		this.cameraTouched = true;
 		if (this.viewport) this.viewport.suppressPan = true;
-	}
-
-	/** Diagnostic: write interaction state to a #graph3d-debug element (and the
-	 *  status bar) so a runtime-only orbit issue is visible without a console.
-	 *  Harmless if the element is absent. */
-	private debugHud(text: string): void {
-		const el = typeof document !== "undefined"
-			? document.getElementById("graph3d-debug")
-			: null;
-		if (el) el.textContent = "dbg: " + text;
 	}
 
 	private handlePointerUp = (event: PointerEvent): void => {
