@@ -142,6 +142,10 @@ class Graph3DHost {
       // glance instead of every node being one flat color.
       const { tints, glow } = encodeByConnectivity(model.nodes);
       this.renderer.applyNodeColors(tints, glow);
+      // Schema clustering: draw a soft hull around each schema's tables so the
+      // graph reads as distinct schema regions. The layout (below) pulls each
+      // schema's nodes to a separate center, so these hulls stay tight.
+      this.renderer.drawClusterHulls(this.schemaHullGroups());
     } catch (e) {
       showFatal("renderer.setModel failed: " + describeError(e));
       return;
@@ -182,7 +186,8 @@ class Graph3DHost {
         } catch (e) {
           showFatal("fitAll failed: " + describeError(e));
         }
-      }
+      },
+      this.dbNodes.map((n) => n.schema ?? "")
     );
 
     const w = this.graphHost.clientWidth;
@@ -216,6 +221,41 @@ class Graph3DHost {
       }
     }
     this.renderDetails(nodeId, node, details);
+  }
+
+  /** Distinct hull colors for schema clusters (0xRRGGBB), reused cyclically. */
+  private static readonly SCHEMA_HULL_COLORS: readonly number[] = [
+    0x4e79a7, 0xf28e2b, 0x59a14f, 0xe15759, 0xb07aa1,
+    0x76b7b2, 0xedc948, 0xff9da7, 0x9c755f, 0xbab0ac,
+  ];
+
+  /** Build one cluster-hull group per schema (node ids + a palette color).
+   *  Returns null when fewer than two schemas are present, so single-schema
+   *  graphs draw no hulls. */
+  private schemaHullGroups():
+      { nodeIds: number[]; color: number }[] | null {
+    const bySchema = new Map<string, number[]>();
+    for (const node of this.dbNodes) {
+      const schema = node.schema ?? "";
+      if (!schema) continue; // skip unschemed nodes rather than hull them together
+      let ids = bySchema.get(schema);
+      if (!ids) {
+        ids = [];
+        bySchema.set(schema, ids);
+      }
+      ids.push(node.id);
+    }
+    if (bySchema.size < 2) return null;
+    const groups: { nodeIds: number[]; color: number }[] = [];
+    let c = 0;
+    for (const ids of bySchema.values()) {
+      groups.push({
+        nodeIds: ids,
+        color: Graph3DHost.SCHEMA_HULL_COLORS[c % Graph3DHost.SCHEMA_HULL_COLORS.length],
+      });
+      c++;
+    }
+    return groups;
   }
 
   /** Names of tables connected to `nodeId`, split by relationship direction

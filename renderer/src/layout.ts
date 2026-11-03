@@ -42,7 +42,8 @@ export function startForceLayout(
   nodeCount: number,
   edges: ReadonlyArray<{ source: number; target: number }>,
   onFrame: (positions3: Float32Array) => void,
-  onSettled?: () => void
+  onSettled?: () => void,
+  schemas?: ReadonlyArray<string>
 ): LayoutHandle {
   const nodes: SimNode[] = [];
   for (let i = 0; i < nodeCount; i++) {
@@ -50,12 +51,31 @@ export function startForceLayout(
   }
   const links: SimLink[] = edges.map((e) => ({ source: e.source, target: e.target }));
 
+  // Schema clustering: when the nodes span more than one schema, give each
+  // schema a center spread around a circle and pull its nodes toward it, so the
+  // graph separates into per-schema regions instead of one congested tangle.
+  // A single-schema (or schema-less) graph keeps the original origin-centered
+  // layout unchanged.
+  const centers = computeSchemaCenters(nodeCount, schemas);
+  const targetX = centers
+    ? (_d: SimulationNodeDatum3D, i: number) => centers.x[i]
+    : 0;
+  const targetY = centers
+    ? (_d: SimulationNodeDatum3D, i: number) => centers.y[i]
+    : 0;
+  const targetZ = centers
+    ? (_d: SimulationNodeDatum3D, i: number) => centers.z[i]
+    : 0;
+  // A touch more pull toward the schema center than the old global centering,
+  // so clusters stay coherent without collapsing (charge still spreads them).
+  const centerStrength = centers ? 0.12 : 0.05;
+
   const sim = forceSimulation<SimNode>(nodes, 3)
     .force("charge", forceManyBody().strength(-30).distanceMax(400))
     .force("link", forceLink(links).id((d: unknown) => (d as SimNode).index).distance(40).strength(0.4))
-    .force("x", forceX(0).strength(0.05))
-    .force("y", forceY(0).strength(0.05))
-    .force("z", forceZ(0).strength(0.05))
+    .force("x", forceX(targetX).strength(centerStrength))
+    .force("y", forceY(targetY).strength(centerStrength))
+    .force("z", forceZ(targetZ).strength(centerStrength))
     .alphaMin(0.02)
     .velocityDecay(0.4);
 
@@ -94,4 +114,60 @@ export function startForceLayout(
       sim.stop();
     },
   };
+}
+
+/** Per-node schema-center target coordinates for clustering. */
+interface SchemaCenters {
+  x: Float32Array;
+  y: Float32Array;
+  z: Float32Array;
+}
+
+/**
+ * Assign each distinct schema a center spread evenly around a circle (radius
+ * scaled to the node count so clusters don't overlap), and return per-node
+ * target coordinates pointing at that node's schema center. Returns null when
+ * clustering doesn't apply — no schema info, or a single schema — so the layout
+ * stays origin-centered exactly as before.
+ */
+function computeSchemaCenters(
+  nodeCount: number,
+  schemas?: ReadonlyArray<string>
+): SchemaCenters | null {
+  if (!schemas || schemas.length !== nodeCount) {
+    return null;
+  }
+  // Distinct schema names in first-seen order.
+  const order: string[] = [];
+  const indexOf = new Map<string, number>();
+  for (const s of schemas) {
+    const key = s ?? "";
+    if (!indexOf.has(key)) {
+      indexOf.set(key, order.length);
+      order.push(key);
+    }
+  }
+  if (order.length < 2) {
+    return null; // one schema (or none) — nothing to separate
+  }
+  // Circle radius grows with both the number of schemas and the overall node
+  // count, so denser graphs get more room between clusters.
+  const radius = Math.max(300, 120 * order.length + nodeCount * 1.5);
+  const centerX = new Float32Array(order.length);
+  const centerY = new Float32Array(order.length);
+  for (let c = 0; c < order.length; c++) {
+    const angle = (2 * Math.PI * c) / order.length;
+    centerX[c] = Math.cos(angle) * radius;
+    centerY[c] = Math.sin(angle) * radius;
+  }
+  const x = new Float32Array(nodeCount);
+  const y = new Float32Array(nodeCount);
+  const z = new Float32Array(nodeCount);
+  for (let i = 0; i < nodeCount; i++) {
+    const c = indexOf.get(schemas[i] ?? "") ?? 0;
+    x[i] = centerX[c];
+    y[i] = centerY[c];
+    z[i] = 0; // keep clusters roughly coplanar; charge gives local 3D spread
+  }
+  return { x, y, z };
 }
