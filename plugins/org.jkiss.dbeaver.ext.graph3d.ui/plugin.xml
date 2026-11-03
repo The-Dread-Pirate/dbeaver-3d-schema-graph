@@ -46,6 +46,7 @@
     <extension point="org.eclipse.ui.menus">
         <menuContribution allPopups="false"
             locationURI="popup:org.eclipse.ui.popup.any?after=tools">
+            <!-- SCHEMA selected: the full table graph, labeled "3D Schema Graph". -->
             <command
                 commandId="org.jkiss.dbeaver.ext.graph3d.ui.openGraph"
                 label="Open in 3D Schema Graph"
@@ -54,7 +55,22 @@
                     <with variable="selection">
                         <count value="1"/>
                         <iterate>
-                            <adapt type="org.jkiss.dbeaver.model.struct.DBSObject"/>
+                            <adapt type="org.jkiss.dbeaver.model.struct.rdb.DBSSchema"/>
+                        </iterate>
+                    </with>
+                </visibleWhen>
+            </command>
+            <!-- DATABASE/CATALOG selected: the full (uncondensed) graph is the
+                 "3D Database Neural View"; the condensed one is the overview. -->
+            <command
+                commandId="org.jkiss.dbeaver.ext.graph3d.ui.openGraph"
+                label="Open in 3D Database Neural View"
+                style="push">
+                <visibleWhen checkEnabled="false">
+                    <with variable="selection">
+                        <count value="1"/>
+                        <iterate>
+                            <adapt type="org.jkiss.dbeaver.model.struct.rdb.DBSCatalog"/>
                         </iterate>
                     </with>
                 </visibleWhen>
@@ -67,7 +83,29 @@
                     <with variable="selection">
                         <count value="1"/>
                         <iterate>
+                            <adapt type="org.jkiss.dbeaver.model.struct.rdb.DBSCatalog"/>
+                        </iterate>
+                    </with>
+                </visibleWhen>
+            </command>
+            <!-- Fallback: a container that is neither a DBSSchema nor DBSCatalog
+                 (driver variation) still gets the full graph under the generic
+                 "3D Schema Graph" label, so the command is never unreachable. -->
+            <command
+                commandId="org.jkiss.dbeaver.ext.graph3d.ui.openGraph"
+                label="Open in 3D Schema Graph"
+                style="push">
+                <visibleWhen checkEnabled="false">
+                    <with variable="selection">
+                        <count value="1"/>
+                        <iterate>
                             <adapt type="org.jkiss.dbeaver.model.struct.DBSObject"/>
+                            <not>
+                                <adapt type="org.jkiss.dbeaver.model.struct.rdb.DBSSchema"/>
+                            </not>
+                            <not>
+                                <adapt type="org.jkiss.dbeaver.model.struct.rdb.DBSCatalog"/>
+                            </not>
                         </iterate>
                     </with>
                 </visibleWhen>
