@@ -6,7 +6,7 @@
 
     <groupId>org.jkiss.dbeaver.ext.graph3d</groupId>
     <artifactId>graph3d-parent</artifactId>
-    <version>0.2.5-SNAPSHOT</version>
+    <version>0.2.7-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <!--
