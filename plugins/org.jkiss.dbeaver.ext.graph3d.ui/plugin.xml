@@ -48,7 +48,7 @@
             locationURI="popup:org.eclipse.ui.popup.any?after=tools">
             <command
                 commandId="org.jkiss.dbeaver.ext.graph3d.ui.openGraph"
-                label="Open in 3D Schema Graph"
+                label="Open in 3D Database Neural View"
                 style="push">
                 <visibleWhen checkEnabled="false">
                     <with variable="selection">
